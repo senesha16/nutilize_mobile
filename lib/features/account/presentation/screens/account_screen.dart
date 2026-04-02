@@ -1,45 +1,355 @@
 import 'package:flutter/material.dart';
 import 'package:nutilize/core/widgets/notification_panel.dart';
 import 'package:nutilize/features/auth/shared/presentation/widgets/auth_ui.dart';
+// import 'package:nutilize/shared/components/nutilize_header.dart';
+import 'package:nutilize/shared/components/simple_header.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.sizeOf(context).width >= 1100;
-    if (isDesktop) {
-      return const _AccountDesktopPage();
-    }
+    return DefaultTextStyle(
+      style: GoogleFonts.poppins(fontSize: 18),
+      child: Stack(
+        children: [
+          const _AtmosphericBackdrop(),
+          SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                const SimpleHeader(title: 'ACCOUNT'),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+                    children: [
+                      // Profile Card
+                      _ProfileCardV2(),
+                      const SizedBox(height: 18),
+                      // Status Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: const [
+                          Expanded(
+                            child: _StatusCardV2(
+                              icon: Icons.calendar_today_rounded,
+                              count: 12,
+                              label: 'Reserved',
+                              color: Color(0xFFF1B60D),
+                            ),
+                          ),
+                          SizedBox(width: 14),
+                          Expanded(
+                            child: _StatusCardV2(
+                              icon: Icons.hourglass_top_rounded,
+                              count: 3,
+                              label: 'Pending',
+                              color: Color(0xFFF57C1F),
+                            ),
+                          ),
+                          SizedBox(width: 14),
+                          Expanded(
+                            child: _StatusCardV2(
+                              icon: Icons.check_circle_rounded,
+                              count: 9,
+                              label: 'Approved',
+                              color: Color(0xFF1BC47D),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      // Navigation Tiles
+                      _NavTile(
+                        icon: Icons.calendar_month_rounded,
+                        label: 'My Reservation',
+                        onTap: () {},
+                      ),
+                      _NavTile(
+                        icon: Icons.assignment_rounded,
+                        label: 'My Requests',
+                        onTap: () {},
+                      ),
+                      _NavTile(
+                        icon: Icons.history_rounded,
+                        label: 'History',
+                        onTap: () {},
+                      ),
+                      const SizedBox(height: 18),
+                      // Settings
+                      _SettingsTile(),
+                      const SizedBox(height: 18),
+                      // Logout
+                      _LogoutButton(),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-    return Stack(
-      children: [
-        const _AtmosphericBackdrop(),
-        SafeArea(
-          top: false,
-          child: Column(
+class _ProfileCardV2 extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Row(
             children: [
-              const _AccountTopStrip(),
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF5664AE),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.person, color: Colors.white, size: 38),
+              ),
+              const SizedBox(width: 14),
               Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: const [
-                    _AccountGreeting(),
-                    SizedBox(height: 10),
-                    _PageTitle(),
-                    SizedBox(height: 16),
-                    _ProfileCard(),
-                    SizedBox(height: 14),
-                    _BorrowingHeader(),
-                    SizedBox(height: 10),
-                    _BorrowingHistoryCard(),
+                    Text(
+                      'Kirk Papiolek',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        color: Colors.black,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'papiollekks@nu-lipa.edu.ph',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF7A7A7A)),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Professor 2 | SACE',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF7A7A7A)),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {},
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(Icons.edit, size: 20, color: Color(0xFF5664AE)),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusCardV2 extends StatelessWidget {
+  final IconData icon;
+  final int count;
+  final String label;
+  final Color color;
+  const _StatusCardV2({
+    required this.icon,
+    required this.count,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      // Remove fixed width, let Expanded control width
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 6),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF7A7A7A),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NavTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _NavTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F7FB),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: const Color(0xFF5664AE)),
+        title: Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+            color: Color(0xFF232323),
+          ),
+        ),
+        trailing: const Icon(
+          Icons.chevron_right_rounded,
+          color: Color(0xFFB2B7C7),
+        ),
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF6F7FB),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: SwitchListTile(
+            value: false,
+            onChanged: (v) {},
+            title: const Text(
+              'Dark Mode',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            ),
+            secondary: const Icon(
+              Icons.nightlight_round,
+              color: Color(0xFF5664AE),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _NavTile(
+          icon: Icons.privacy_tip_rounded,
+          label: 'Privacy and Security',
+          onTap: () {},
+        ),
+        _NavTile(
+          icon: Icons.info_rounded,
+          label: 'About NUtilize',
+          onTap: () {},
         ),
       ],
+    );
+  }
+}
+
+class _LogoutButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () {},
+        icon: const Icon(Icons.logout, color: Color(0xFF5664AE)),
+        label: const Text(
+          'Log out',
+          style: TextStyle(
+            color: Color(0xFF5664AE),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFF6F7FB),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -143,129 +453,6 @@ class _AtmosphericBackdrop extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [Color(0xFFF5F6FA), Color(0xFFE8ECF7)],
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -40,
-            right: -50,
-            child: Container(
-              width: 190,
-              height: 190,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0x26FFFFFF),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -70,
-            left: -60,
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0x1D4B5BB5),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AccountTopStrip extends StatelessWidget {
-  const _AccountTopStrip();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          height: 56,
-          color: AuthPalette.royalBlue,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: SizedBox(
-            height: 24,
-            child: Image.asset(
-              'assets/images/nutilize_logo.png',
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return const Text(
-                  'NU TILIZE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        Container(height: 4, color: AuthPalette.yellow),
-      ],
-    );
-  }
-}
-
-class _AccountGreeting extends StatelessWidget {
-  const _AccountGreeting();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Good Evening',
-                style: TextStyle(
-                  fontSize: 35 / 1.7,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                ),
-              ),
-              SizedBox(height: 4),
-              Row(
-                children: [
-                  _UserPillLabel(),
-                  SizedBox(width: 6),
-                  Text('👋', style: TextStyle(fontSize: 20)),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const NotificationBellButton(),
-      ],
-    );
-  }
-}
-
-class _UserPillLabel extends StatelessWidget {
-  const _UserPillLabel();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF5664AE),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: const Text(
-        'Kirk Popiolek',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
         ),
       ),
     );

@@ -2,6 +2,7 @@ import 'package:nutilize/core/widgets/notification_panel.dart';
 import 'package:nutilize/features/auth/shared/presentation/widgets/auth_ui.dart';
 import 'package:nutilize/features/home/presentation/widgets/reservation_status_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:nutilize/shared/components/nutilize_header.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -19,14 +20,12 @@ class HomeScreen extends StatelessWidget {
         top: false,
         child: Column(
           children: [
-            const _HomeTopStrip(),
+            const NutilizeHeader(),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(12, 14, 12, 20),
                 children: [
                   const _GreetingRow(),
-                  const SizedBox(height: 14),
-                  const _SearchField(),
                   const SizedBox(height: 14),
                   const _ReservationHighlightCard(),
                   const SizedBox(height: 14),
@@ -424,14 +423,7 @@ class _HomeTopStrip extends StatelessWidget {
               'assets/images/nutilize_logo.png',
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) {
-                return const Text(
-                  'NU TILIZE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                );
+                return const SizedBox.shrink();
               },
             ),
           ),
@@ -447,32 +439,25 @@ class _GreetingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Good Evening',
-                style: TextStyle(
-                  fontSize: 34 / 1.7,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                ),
-              ),
-              SizedBox(height: 4),
-              Row(
-                children: [
-                  _PillLabel(text: 'Kirk Popiolek'),
-                  SizedBox(width: 6),
-                  Text('👋', style: TextStyle(fontSize: 20)),
-                ],
-              ),
-            ],
+        const Text(
+          'Good Evening',
+          style: TextStyle(
+            fontSize: 34 / 1.7,
+            fontWeight: FontWeight.w700,
+            color: Colors.black,
           ),
         ),
-        const NotificationBellButton(),
+        const SizedBox(height: 4),
+        Row(
+          children: const [
+            _PillLabel(text: 'Kirk Popiolek'),
+            SizedBox(width: 6),
+            Text('👋', style: TextStyle(fontSize: 20)),
+          ],
+        ),
       ],
     );
   }
@@ -802,6 +787,97 @@ class _ReservationHighlightCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Unified Nutilize header widget
+class NutilizeHeader extends StatelessWidget {
+  const NutilizeHeader({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          height: 56,
+          color: AuthPalette.royalBlue,
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 14),
+                child: SizedBox(
+                  height: 36,
+                  child: Image.asset(
+                    'assets/images/nutilize_logo.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Row(
+                  children: [
+                    _HeaderIconButton(icon: Icons.search, onTap: () {}),
+                    const SizedBox(width: 10),
+                    Stack(
+                      children: [
+                        _HeaderIconButton(
+                          icon: Icons.notifications,
+                          onTap: () {
+                            showNotificationsPanel(context);
+                          },
+                        ),
+                        Positioned(
+                          right: 4,
+                          top: 4,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(height: 4, color: AuthPalette.yellow),
+      ],
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _HeaderIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Icon(icon, color: AuthPalette.royalBlue, size: 22),
+        ),
       ),
     );
   }

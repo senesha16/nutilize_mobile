@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
+//import 'package:flutter/cupertino.dart';
 import 'package:nutilize/core/widgets/notification_panel.dart';
+import 'package:nutilize/features/home/presentation/widgets/reservation_status_dialog.dart';
+//import 'package:nutilize/shared/components/nutilize_header.dart';
+import 'package:nutilize/shared/components/simple_header.dart';
 
 import 'package:nutilize/features/auth/shared/presentation/widgets/auth_ui.dart';
 
 class CalendarScreen extends StatelessWidget {
-  // ...existing code...
-
   const CalendarScreen({Key? key}) : super(key: key);
 
   @override
@@ -28,7 +29,7 @@ class CalendarScreen extends StatelessWidget {
         top: false,
         child: Column(
           children: [
-            const _CalendarTopStrip(),
+            const SimpleHeader(title: 'CALENDAR'),
             Expanded(child: _IphoneStyleCalendar()),
           ],
         ),
@@ -57,60 +58,128 @@ class _IphoneStyleCalendarState extends State<_IphoneStyleCalendar> {
       {'time': '10:00 AM', 'title': 'Room 201', 'desc': 'Maundy Thursday'},
       {'time': '2:00 PM', 'title': 'Room 530', 'desc': 'Project Meeting'},
     ],
-    '2026-04-05': [
-      {'time': '1:00 PM', 'title': 'Room 120', 'desc': 'Consultation'},
-    ],
-    '2026-04-15': [
-      {'time': '3:00 PM', 'title': 'Room 330', 'desc': 'ML Tournament'},
-    ],
   };
 
-  // Helper to get number of days in a month
-  int _daysInMonth(int year, int month) {
-    if (month == 12) return DateTime(year + 1, 1, 0).day;
-    return DateTime(year, month + 1, 0).day;
-  }
-
-  // Helper to get first weekday (0=Sun, 1=Mon...)
-  int _firstWeekday(int year, int month) {
-    return DateTime(year, month, 1).weekday % 7;
-  }
-
-  // Helper to get month name
-  String _monthName(int month) {
-    const names = [
-      '',
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return names[month];
+  Future<void> _showSchedulePopup(Map<String, String> event) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: const Color(0xFFF2F2F2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 24, 18, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'NUtilize Reservation',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                _PopupInfoRow(
+                  icon: Icons.apartment_rounded,
+                  title: event['title'] ?? 'Room 530',
+                  subtitle: event['desc'] ?? 'ML Tournament | Intrams',
+                ),
+                const SizedBox(height: 14),
+                const _PopupInfoRow(
+                  icon: Icons.place,
+                  title: 'Location',
+                  subtitle: 'Fifth Floor of NU Lipa Infront of Library',
+                ),
+                const SizedBox(height: 14),
+                _PopupInfoRow(
+                  icon: Icons.access_time_filled,
+                  title: 'Time',
+                  subtitle: event['time'] ?? '10:00 am - 5:00 pm',
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3E4FA8),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      showReservationStatusDialog(context);
+                    },
+                    child: const Text(
+                      'Check Reservation',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Remove static daysInMonth, firstWeekday, and days declarations (use dynamic below)
-    final numDaysInMonth = _daysInMonth(selectedYear, selectedMonth);
-    final firstDayWeekday = _firstWeekday(selectedYear, selectedMonth);
-    final days = List.generate(numDaysInMonth, (i) => i + 1);
-    final List<Widget> rows = [];
-    int dayIndex = 0;
-
     // Colors (light theme, blue/yellow)
     const bgColor = Color(0xFFF2F2F2);
     const textColor = Color(0xFF222222);
     const subTextColor = Color(0xFF757575);
     const selectedColor = Color(0xFF3E4FA8); // Royal Blue
     const eventDotColor = Color(0xFFFFD600); // Yellow
+
+    // Helper to get number of days in a month
+    int _daysInMonth(int year, int month) {
+      if (month == 12) return DateTime(year + 1, 1, 0).day;
+      return DateTime(year, month + 1, 0).day;
+    }
+
+    // Helper to get first weekday (0=Sun, 1=Mon...)
+    int _firstWeekday(int year, int month) {
+      return DateTime(year, month, 1).weekday % 7;
+    }
+
+    // Helper to get month name
+    String _monthName(int month) {
+      const names = [
+        '',
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
+      return names[month];
+    }
+
+    final numDaysInMonth = _daysInMonth(selectedYear, selectedMonth);
+    final firstDayWeekday = _firstWeekday(selectedYear, selectedMonth);
+    final days = List.generate(numDaysInMonth, (i) => i + 1);
+    final List<Widget> rows = [];
+    int dayIndex = 0;
 
     // Collect event days for this month
     final eventDays = <int>{};
@@ -201,246 +270,312 @@ class _IphoneStyleCalendarState extends State<_IphoneStyleCalendar> {
         '${selectedYear.toString().padLeft(4, '0')}-${selectedMonth.toString().padLeft(2, '0')}-${selectedDay.toString().padLeft(2, '0')}';
     final agenda = reservations[selectedKey] ?? [];
 
+    // Time slots from 7:00AM to 5:00PM
+    final List<String> timeSlots = [
+      for (int h = 7; h <= 17; h++)
+        h < 12
+            ? '${h}:00 AM'
+            : h == 12
+            ? '12:00 PM'
+            : '${h - 12}:00 PM',
+    ];
+
+    // Map reservations by time for quick lookup (assume 'time' is like '7:00 AM')
+    final Map<String, Map<String, String>> agendaByTime = Map.fromEntries(
+      agenda.map((event) => MapEntry(event['time'] ?? '', event)),
+    );
+
     return Container(
       color: bgColor,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Month and year header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      _monthName(selectedMonth),
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: textColor,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      selectedYear.toString(),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        color: subTextColor,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                // Navigation arrows
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.chevron_left,
-                        color: subTextColor,
-                        size: 28,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          if (selectedMonth == 1) {
-                            selectedMonth = 12;
-                            selectedYear--;
-                          } else {
-                            selectedMonth--;
-                          }
-                          // Clamp selectedDay to new month
-                          final maxDay = _daysInMonth(
-                            selectedYear,
-                            selectedMonth,
-                          );
-                          if (selectedDay > maxDay) selectedDay = maxDay;
-                        });
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.chevron_right,
-                        color: subTextColor,
-                        size: 28,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          if (selectedMonth == 12) {
-                            selectedMonth = 1;
-                            selectedYear++;
-                          } else {
-                            selectedMonth++;
-                          }
-                          // Clamp selectedDay to new month
-                          final maxDay = _daysInMonth(
-                            selectedYear,
-                            selectedMonth,
-                          );
-                          if (selectedDay > maxDay) selectedDay = maxDay;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            // Weekday labels
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'S',
-                      style: TextStyle(
-                        color: subTextColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'M',
-                      style: TextStyle(
-                        color: subTextColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'T',
-                      style: TextStyle(
-                        color: subTextColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'W',
-                      style: TextStyle(
-                        color: subTextColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'T',
-                      style: TextStyle(
-                        color: subTextColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'F',
-                      style: TextStyle(
-                        color: subTextColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      'S',
-                      style: TextStyle(
-                        color: subTextColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            // Calendar grid
-            ...rows,
-            const SizedBox(height: 18),
-            // Agenda view
-            Text(
-              'Events for ${_monthName(selectedMonth)} $selectedDay',
-              style: const TextStyle(
-                color: textColor,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (agenda.isEmpty)
-              const Text(
-                'No events for this day.',
-                style: TextStyle(color: subTextColor, fontSize: 16),
-              )
-            else
-              ...agenda.map(
-                (event) => Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Month and year header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
                     children: [
                       Text(
-                        event['time'] ?? '',
+                        _monthName(selectedMonth),
                         style: const TextStyle(
-                          color: selectedColor,
+                          fontSize: 32,
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        event['title'] ?? '',
-                        style: const TextStyle(
                           color: textColor,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
                         ),
                       ),
-                      if (event['desc'] != null)
-                        Text(
-                          event['desc']!,
-                          style: const TextStyle(
-                            color: subTextColor,
-                            fontSize: 15,
-                          ),
+                      const SizedBox(width: 8),
+                      Text(
+                        selectedYear.toString(),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          color: subTextColor,
+                          fontWeight: FontWeight.w500,
                         ),
+                      ),
                     ],
                   ),
+                  // Navigation arrows
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.chevron_left,
+                          color: subTextColor,
+                          size: 28,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            if (selectedMonth == 1) {
+                              selectedMonth = 12;
+                              selectedYear--;
+                            } else {
+                              selectedMonth--;
+                            }
+                            // Clamp selectedDay to new month
+                            final maxDay = _daysInMonth(
+                              selectedYear,
+                              selectedMonth,
+                            );
+                            if (selectedDay > maxDay) selectedDay = maxDay;
+                          });
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.chevron_right,
+                          color: subTextColor,
+                          size: 28,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            if (selectedMonth == 12) {
+                              selectedMonth = 1;
+                              selectedYear++;
+                            } else {
+                              selectedMonth++;
+                            }
+                            // Clamp selectedDay to new month
+                            final maxDay = _daysInMonth(
+                              selectedYear,
+                              selectedMonth,
+                            );
+                            if (selectedDay > maxDay) selectedDay = maxDay;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Weekday labels
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const [
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'S',
+                        style: TextStyle(
+                          color: subTextColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'M',
+                        style: TextStyle(
+                          color: subTextColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'T',
+                        style: TextStyle(
+                          color: subTextColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'W',
+                        style: TextStyle(
+                          color: subTextColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'T',
+                        style: TextStyle(
+                          color: subTextColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'F',
+                        style: TextStyle(
+                          color: subTextColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        'S',
+                        style: TextStyle(
+                          color: subTextColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              // Calendar grid
+              ...rows,
+              const SizedBox(height: 18),
+              // Agenda view (time slots)
+              const Divider(thickness: 1.1, color: Color(0xFFBDBDBD)),
+              const SizedBox(height: 8),
+              Text(
+                selectedDay == DateTime.now().day &&
+                        selectedMonth == DateTime.now().month &&
+                        selectedYear == DateTime.now().year
+                    ? 'Today'
+                    : '',
+                style: const TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-          ],
+              ...timeSlots.map((slot) {
+                final event = agendaByTime[slot];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        child: Text(
+                          slot,
+                          style: const TextStyle(
+                            color: subTextColor,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: event == null
+                            ? const Divider(
+                                thickness: 1,
+                                color: Color(0xFFE0E0E0),
+                              )
+                            : InkWell(
+                                onTap: () => _showSchedulePopup(event),
+                                borderRadius: BorderRadius.circular(14),
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 2),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE9ECF7),
+                                    borderRadius: BorderRadius.circular(14),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.08),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        margin: const EdgeInsets.only(
+                                          right: 10,
+                                          top: 2,
+                                        ),
+                                        child: const Icon(
+                                          Icons.apartment_rounded,
+                                          color: selectedColor,
+                                          size: 22,
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              event['title'] ?? '',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16,
+                                                color: selectedColor,
+                                              ),
+                                            ),
+                                            if (event['desc'] != null)
+                                              Text(
+                                                event['desc']!,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  color: textColor,
+                                                ),
+                                              ),
+                                            Text(
+                                              event['time'] ?? '',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: subTextColor,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
         ),
       ),
-      // End of build method
     );
   }
 }
@@ -573,6 +708,61 @@ class _CalendarGrid extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         ...rows,
+      ],
+    );
+  }
+}
+
+class _PopupInfoRow extends StatelessWidget {
+  const _PopupInfoRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 54,
+          height: 54,
+          decoration: BoxDecoration(
+            color: const Color(0xFF3E4FA8),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: Colors.white, size: 32),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF6F6F6F),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -799,42 +989,6 @@ class _CalendarDesktopPage extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _CalendarTopStrip extends StatelessWidget {
-  const _CalendarTopStrip();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          height: 56,
-          color: AuthPalette.royalBlue,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: SizedBox(
-            height: 24,
-            child: Image.asset(
-              'assets/images/nutilize_logo.png',
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return const Text(
-                  'NU TILIZE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        Container(height: 4, color: AuthPalette.yellow),
-      ],
     );
   }
 }

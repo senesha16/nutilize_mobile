@@ -1,8 +1,143 @@
 import 'package:flutter/material.dart';
 
+class _ReservationSummaryCard extends StatelessWidget {
+  const _ReservationSummaryCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // TODO: Replace with actual reservation data
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.apartment_rounded, color: Colors.white, size: 32),
+            const SizedBox(width: 10),
+            Text(
+              'NUtilize ',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 20,
+              ),
+            ),
+            const Text(
+              'Reservation Form',
+              style: TextStyle(color: Colors.white, fontSize: 20),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'Items up for borrowing',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+              ),
+              Divider(),
+              SizedBox(height: 8),
+              Text('Rooms:', style: TextStyle(fontWeight: FontWeight.w600)),
+              Text('Room 530'),
+              SizedBox(height: 8),
+              Text('Items:', style: TextStyle(fontWeight: FontWeight.w600)),
+              Text('Podium'),
+              Text('Camera'),
+              Text('HDMI'),
+              Text('Projector'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RequestSubmittedFeedbackPage extends StatelessWidget {
+  const _RequestSubmittedFeedbackPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF3F3F3),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Column(
+            children: [
+              const Spacer(),
+              Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1CC),
+                  borderRadius: BorderRadius.circular(70),
+                ),
+                child: const Icon(
+                  Icons.emoji_events_rounded,
+                  color: Color(0xFFF5BC1D),
+                  size: 78,
+                ),
+              ),
+              const SizedBox(height: 26),
+              const Text(
+                'Congratulations!',
+                style: TextStyle(
+                  color: Color(0xFF23266B),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 40,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'You have successfully requested.\nThe admin has already received your request.',
+                style: TextStyle(
+                  color: Color(0xFF333333),
+                  fontSize: 20,
+                  height: 1.35,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF5BC1D),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  },
+                  child: const Text(
+                    'Finish',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class RoomReservationFormPage extends StatelessWidget {
   final int step;
-  const RoomReservationFormPage({Key? key, this.step = 1}) : super(key: key);
+  const RoomReservationFormPage({super.key, this.step = 1});
 
   @override
   Widget build(BuildContext context) {
@@ -46,79 +181,89 @@ class RoomReservationFormPage extends StatelessWidget {
                     // Greeting and progress
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Text(
-                                'Hello, Kirk  👋',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 22,
+                      child: step == 5
+                          ? const _ReservationSummaryCard()
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Hello, Kirk  👋',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 22,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          const Text(
-                            'Lets start your reservation',
-                            style: TextStyle(color: Colors.white, fontSize: 15),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Take a moment to fill in your details',
-                            style: TextStyle(color: Colors.white, fontSize: 15),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: List.generate(
-                              5,
-                              (i) => Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
+                                const SizedBox(height: 2),
+                                const Text(
+                                  'Lets start your reservation',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                  ),
                                 ),
-                                child: Icon(
-                                  Icons.check_circle,
-                                  color: i == (step - 1)
-                                      ? Color(0xFFF5BC1D)
-                                      : Color(0xFFD1D5DB),
-                                  size: 22,
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'Take a moment to fill in your details',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: List.generate(
+                                    5,
+                                    (i) => Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 2,
+                                      ),
+                                      child: Icon(
+                                        Icons.check_circle,
+                                        color: i < step
+                                            ? const Color(0xFFF5BC1D)
+                                            : const Color(0xFFD1D5DB),
+                                        size: 22,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
                     ),
                     const SizedBox(height: 18),
                     // Form Card
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 18),
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                    if (step != 5)
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 18),
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0x14000000),
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: step == 4
+                            ? _PeripheralsFormFields()
+                            : step == 3
+                            ? _RoomSuggestionsList()
+                            : step == 2
+                            ? _ReservationDetailsFormFields()
+                            : _ReservationFormFields(),
                       ),
-                      child: step == 4
-                          ? _PeripheralsFormFields()
-                          : step == 3
-                          ? _RoomSuggestionsList()
-                          : step == 2
-                          ? _ReservationDetailsFormFields()
-                          : _ReservationFormFields(),
-                    ),
-                    const SizedBox(
-                      height: 80,
-                    ), // Add space for the swipe button
+                    if (step != 5)
+                      const SizedBox(
+                        height: 80,
+                      ), // Add space for the swipe button
                   ],
                 ),
               ),
@@ -126,54 +271,95 @@ class RoomReservationFormPage extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(left: 24, right: 24, bottom: 16),
-          child: _SwipeToProceedButton(
-            onProceed: () {
-              if (step == 1) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const RoomReservationFormPage(step: 2),
-                  ),
-                );
-              } else if (step == 2) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const RoomReservationFormPage(step: 3),
-                  ),
-                );
-              } else if (step == 3) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const RoomReservationFormPage(step: 4),
-                  ),
-                );
-              } else {
-                // Optionally handle after last step
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Done'),
-                    content: const Text(
-                      'You have reached the end of the form.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('OK'),
+      bottomNavigationBar: step == 5
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 24, right: 24, bottom: 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF233B7A),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                    ],
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const _RequestSubmittedFeedbackPage(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'Finish',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 18,
+                      ),
+                    ),
                   ),
-                );
-              }
-            },
-          ),
-        ),
-      ),
+                ),
+              ),
+            )
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 24, right: 24, bottom: 16),
+                child: _SwipeToProceedButton(
+                  onProceed: () {
+                    if (step == 1) {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const RoomReservationFormPage(step: 2),
+                        ),
+                      );
+                    } else if (step == 2) {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const RoomReservationFormPage(step: 3),
+                        ),
+                      );
+                    } else if (step == 3) {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const RoomReservationFormPage(step: 4),
+                        ),
+                      );
+                    } else if (step == 4) {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const RoomReservationFormPage(step: 5),
+                        ),
+                      );
+                    } else {
+                      // Optionally handle after last step
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Done'),
+                          content: const Text(
+                            'You have reached the end of the form.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
+            ),
     );
   }
 }
@@ -916,7 +1102,7 @@ class _ReservationFormFieldsState extends State<_ReservationFormFields> {
         const Text('Expected Attendance:'),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
-          value: _attendance,
+          initialValue: _attendance,
           items: _attendanceOptions
               .map((e) => DropdownMenuItem(value: e, child: Text(e)))
               .toList(),
@@ -982,7 +1168,7 @@ class _SwipeToProceedButtonState extends State<_SwipeToProceedButton> {
               borderRadius: BorderRadius.circular(32),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: const Color(0x14000000),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -990,7 +1176,7 @@ class _SwipeToProceedButtonState extends State<_SwipeToProceedButton> {
             ),
             alignment: Alignment.center,
             child: Text(
-              _completed ? 'Proceeding...' : 'Swipe Left To proceed',
+              _completed ? 'Proceeding...' : 'Swipe Right To proceed',
               style: const TextStyle(
                 color: Color(0xFF233B7A),
                 fontWeight: FontWeight.w700,

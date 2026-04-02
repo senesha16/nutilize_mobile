@@ -3,6 +3,7 @@ import 'package:nutilize/app/shell/main_shell.dart';
 import 'package:nutilize/core/design/app_theme.dart';
 import 'package:nutilize/features/auth/login/presentation/screens/login_screen.dart';
 import 'package:nutilize/features/auth/register/presentation/screens/register_screen.dart';
+import 'package:nutilize/features/splash/presentation/screens/splash_screen.dart';
 
 class NutilizeApp extends StatelessWidget {
   const NutilizeApp({super.key});
@@ -13,8 +14,9 @@ class NutilizeApp extends StatelessWidget {
       title: 'Nutilize',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      initialRoute: LoginScreen.routeName,
+      initialRoute: SplashScreen.routeName,
       routes: {
+        SplashScreen.routeName: (context) => const SplashScreen(),
         LoginScreen.routeName: (context) => const LoginScreen(),
         RegisterScreen.routeName: (context) => const RegisterScreen(),
         MainShell.routeName: (context) => const MainShell(),

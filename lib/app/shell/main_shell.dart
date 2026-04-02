@@ -367,26 +367,12 @@ class _DockNavItem extends StatelessWidget {
           color: isActive ? const Color(0xFF5A67B0) : const Color(0xFFD8D8D8),
           borderRadius: BorderRadius.circular(18),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 21,
-              color: isActive ? Colors.white : const Color(0xFF8D8D8D),
-            ),
-            if (isActive) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18 / 1.2,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ],
+        child: Center(
+          child: Icon(
+            icon,
+            size: 21,
+            color: isActive ? Colors.white : const Color(0xFF8D8D8D),
+          ),
         ),
       ),
     );

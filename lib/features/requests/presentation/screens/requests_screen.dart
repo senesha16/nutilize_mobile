@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:nutilize/core/widgets/notification_panel.dart';
 import 'package:nutilize/features/auth/shared/presentation/widgets/auth_ui.dart';
 import 'room_reservation_form_widgets.dart';
+import 'package:nutilize/shared/components/nutilize_header.dart';
+import 'package:nutilize/shared/components/simple_header.dart';
 
 class RequestsScreen extends StatelessWidget {
   const RequestsScreen({super.key});
@@ -19,13 +21,11 @@ class RequestsScreen extends StatelessWidget {
         top: false,
         child: Column(
           children: [
-            const _RequestTopStrip(),
+            const SimpleHeader(title: 'REQUESTS'),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
                 children: [
-                  const _RequestGreeting(),
-                  const SizedBox(height: 20),
                   const _RequestHeadline(),
                   const SizedBox(height: 20),
                   _RequestTypeCard(
@@ -139,101 +139,6 @@ class _RequestsDesktopPage extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _RequestTopStrip extends StatelessWidget {
-  const _RequestTopStrip();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          height: 56,
-          color: AuthPalette.royalBlue,
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: SizedBox(
-            height: 24,
-            child: Image.asset(
-              'assets/images/nutilize_logo.png',
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return const Text(
-                  'NU TILIZE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        Container(height: 4, color: AuthPalette.yellow),
-      ],
-    );
-  }
-}
-
-class _RequestGreeting extends StatelessWidget {
-  const _RequestGreeting();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Good Evening',
-                style: TextStyle(
-                  fontSize: 35 / 1.7,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                ),
-              ),
-              SizedBox(height: 4),
-              Row(
-                children: [
-                  _UserPillLabel(),
-                  SizedBox(width: 6),
-                  Text('👋', style: TextStyle(fontSize: 20)),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const NotificationBellButton(),
-      ],
-    );
-  }
-}
-
-class _UserPillLabel extends StatelessWidget {
-  const _UserPillLabel();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF5664AE),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: const Text(
-        'Kirk Popiolek',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-        ),
       ),
     );
   }
