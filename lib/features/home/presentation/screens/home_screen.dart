@@ -3,6 +3,7 @@ import 'package:nutilize/features/auth/shared/presentation/widgets/auth_ui.dart'
 import 'package:nutilize/features/home/presentation/widgets/reservation_status_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:nutilize/shared/components/nutilize_header.dart';
+import 'package:nutilize/features/auth/data/auth_service.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -434,31 +435,49 @@ class _HomeTopStrip extends StatelessWidget {
   }
 }
 
-class _GreetingRow extends StatelessWidget {
+class _GreetingRow extends StatefulWidget {
   const _GreetingRow();
 
   @override
+  State<_GreetingRow> createState() => _GreetingRowState();
+}
+
+class _GreetingRowState extends State<_GreetingRow> {
+  final _authService = AuthService();
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Good Evening',
-          style: TextStyle(
-            fontSize: 34 / 1.7,
-            fontWeight: FontWeight.w700,
-            color: Colors.black,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: const [
-            _PillLabel(text: 'Kirk Popiolek'),
-            SizedBox(width: 6),
-            Text('👋', style: TextStyle(fontSize: 20)),
+    return FutureBuilder(
+      future: _authService.getCurrentUser(),
+      builder: (context, snapshot) {
+        String userName = 'User';
+        
+        if (snapshot.hasData && snapshot.data != null) {
+          userName = snapshot.data!.username;
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Good Evening',
+              style: TextStyle(
+                fontSize: 34 / 1.7,
+                fontWeight: FontWeight.w700,
+                color: Colors.black,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                _PillLabel(text: userName),
+                const SizedBox(width: 6),
+                const Text('👋', style: TextStyle(fontSize: 20)),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }

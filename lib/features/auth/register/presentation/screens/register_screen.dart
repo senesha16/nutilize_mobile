@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nutilize/app/shell/main_shell.dart';
+import 'package:nutilize/features/auth/data/auth_service.dart';
 import 'package:nutilize/features/auth/login/presentation/screens/login_screen.dart';
 import 'package:nutilize/features/auth/shared/presentation/widgets/auth_ui.dart';
 
@@ -19,8 +20,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _passwordFocusNode = FocusNode();
+  final _authService = AuthService();
+  
   String _passwordValue = '';
   String _confirmPasswordValue = '';
+  bool _isLoading = false;
+  String? _errorMessage;
 
   bool get _hasMinLength => _passwordValue.length >= 8;
   bool get _hasUppercase => RegExp(r'[A-Z]').hasMatch(_passwordValue);
@@ -69,6 +74,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool get _isConfirmMatched =>
       _confirmPasswordValue.isNotEmpty &&
       _confirmPasswordValue == _passwordValue;
+  bool get _isFormValid =>
+      _nameController.text.isNotEmpty &&
+      _emailController.text.isNotEmpty &&
+      _usernameController.text.isNotEmpty &&
+      _isStrong &&
+      _isConfirmMatched;
 
   @override
   void initState() {
@@ -89,6 +100,64 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  Future<void> _handleRegister() async {
+    if (!_isFormValid) {
+      setState(() {
+        _errorMessage = 'Please complete all fields with valid requirements';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final user = await _authService.register(
+        fullName: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        username: _usernameController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      // Clear error on success
+      setState(() => _errorMessage = null);
+
+      // Show success message and navigate to login
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Account created successfully! Please log in.'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // Navigate to login screen
+      Navigator.pushReplacementNamed(context, LoginScreen.routeName);
+    } on Exception catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_errorMessage!),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AuthScaffold(
@@ -101,18 +170,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
               hint: 'Enter your full name',
               icon: Icons.badge_outlined,
               controller: _nameController,
+              enabled: !_isLoading,
             ),
             const SizedBox(height: 16),
             AuthInput(
               hint: 'Enter your email',
               icon: Icons.email_outlined,
               controller: _emailController,
+              enabled: !_isLoading,
             ),
             const SizedBox(height: 16),
             AuthInput(
               hint: 'Choose a username',
               icon: Icons.person_outline,
               controller: _usernameController,
+              enabled: !_isLoading,
             ),
             const SizedBox(height: 16),
             AuthInput(
@@ -121,6 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               obscureText: true,
               controller: _passwordController,
               focusNode: _passwordFocusNode,
+              enabled: !_isLoading,
               onChanged: (value) {
                 setState(() => _passwordValue = value);
               },
@@ -199,6 +272,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               icon: Icons.shield_outlined,
               obscureText: true,
               controller: _confirmPasswordController,
+              enabled: !_isLoading,
               onChanged: (value) {
                 setState(() => _confirmPasswordValue = value);
               },
@@ -218,22 +292,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     )
                   : null,
             ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: Colors.red, width: 0.5),
+                ),
+                child: Text(
+                  _errorMessage!,
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             AuthPrimaryButton(
-              text: 'Register',
-              onPressed: () {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  MainShell.routeName,
-                  (route) => false,
-                );
-              },
+              text: _isLoading ? 'Creating account...' : 'Register',
+              onPressed: _isLoading ? null : (_isFormValid ? _handleRegister : null),
             ),
             const SizedBox(height: 14),
             TextButton(
-              onPressed: () {
-                Navigator.pushReplacementNamed(context, LoginScreen.routeName);
-              },
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      Navigator.pushReplacementNamed(context, LoginScreen.routeName);
+                    },
               child: const Text.rich(
                 TextSpan(
                   text: 'Already have an account? ',

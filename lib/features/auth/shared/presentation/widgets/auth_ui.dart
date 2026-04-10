@@ -179,6 +179,7 @@ class AuthInput extends StatelessWidget {
     this.focusNode,
     this.trailing,
     this.obscureText = false,
+    this.enabled = true,
     super.key,
   });
 
@@ -190,6 +191,7 @@ class AuthInput extends StatelessWidget {
   final FocusNode? focusNode;
   final Widget? trailing;
   final bool obscureText;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -212,10 +214,11 @@ class AuthInput extends StatelessWidget {
             child: TextField(
               controller: controller,
               onChanged: onChanged,
-              onTap: onTap,
+              onTap: enabled ? onTap : null,
               focusNode: focusNode,
               obscureText: obscureText,
-              style: const TextStyle(
+              enabled: enabled,
+              style: TextStyle(
                 color: AuthPalette.royalBlue,
                 fontSize: 33 / 2,
                 fontWeight: FontWeight.w500,
@@ -224,8 +227,8 @@ class AuthInput extends StatelessWidget {
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14),
                 hintText: hint,
-                hintStyle: const TextStyle(
-                  color: AuthPalette.hint,
+                hintStyle: TextStyle(
+                  color: AuthPalette.hint.withOpacity(enabled ? 1.0 : 0.6),
                   fontSize: 33 / 2,
                   fontWeight: FontWeight.w500,
                 ),
