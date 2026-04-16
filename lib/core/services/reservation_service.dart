@@ -112,7 +112,7 @@ class ReservationService {
     }
   }
 
-  /// Add items to a reservation
+  /// Add items to a reservations
   /// This creates entries in reservation_items and reservation_details tables
   Future<void> addItemToReservation({
     required int reservationId,
@@ -120,7 +120,7 @@ class ReservationService {
     int quantity = 1,
   }) async {
     try {
-      // First create the reservation_items entry
+      // First create the reservation_items entryy
       final itemRes = await _supabase
           .from('reservation_items')
           .insert({'item_id': itemId})
