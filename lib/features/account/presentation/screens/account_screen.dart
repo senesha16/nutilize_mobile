@@ -1,15 +1,180 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:nutilize/core/models/user.dart' as user_model;
+import 'package:nutilize/core/services/reservation_service.dart';
 import 'package:nutilize/core/widgets/notification_panel.dart';
+import 'package:nutilize/features/auth/data/auth_service.dart';
+import 'package:nutilize/features/auth/login/presentation/screens/login_screen.dart';
 import 'package:nutilize/features/auth/shared/presentation/widgets/auth_ui.dart';
 // import 'package:nutilize/shared/components/nutilize_header.dart';
 import 'package:nutilize/shared/components/simple_header.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-class AccountScreen extends StatelessWidget {
+class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
 
   @override
+  State<AccountScreen> createState() => _AccountScreenState();
+}
+
+class _AccountScreenState extends State<AccountScreen> {
+  final AuthService _authService = AuthService();
+  final ReservationService _reservationService = ReservationService();
+  late final Future<_AccountData?> _accountDataFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _accountDataFuture = _loadAccountData();
+  }
+
+  Future<_AccountData?> _loadAccountData() async {
+    try {
+      final user = await _authService.getCurrentUser();
+      if (user == null) return null;
+
+      // Fetch user's reservations
+      final reservations = await _reservationService.getUserReservations(user.userId);
+
+      // Count reservations by status
+      int reserved = reservations.length; // Total reservations
+      int pending = 0;
+      int approved = 0;
+
+      for (var reservation in reservations) {
+        // Get approvals for each reservation
+        final approvals = await _reservationService.getReservationApprovals(
+          reservation.reservationId,
+        );
+
+        if (approvals.isEmpty) {
+          pending++;
+        } else {
+          final allApproved = approvals.every((a) => a.status == 'approved');
+          if (allApproved) {
+            approved++;
+          } else {
+            pending++;
+          }
+        }
+      }
+
+      return _AccountData(
+        user: user,
+        reservedCount: reserved,
+        pendingCount: pending,
+        approvedCount: approved,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    await _authService.logout();
+    if (!mounted) return;
+
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      LoginScreen.routeName,
+      (route) => false,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return FutureBuilder<_AccountData?>(
+      future: _accountDataFuture,
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        final user = data?.user;
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: ColoredBox(
+              color: Color(0xFFF2F2F2),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        if (snapshot.hasError || user == null) {
+          return _AccountView(
+            user: user_model.User(
+              userId: 0,
+              username: 'Guest',
+              email: 'No account loaded',
+              role: 'student',
+              firstName: 'Guest',
+              middleInitial: '',
+              lastName: '',
+              fullName: 'Guest',
+              affiliation: 'Not available',
+              createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+            ),
+            isLoggedIn: false,
+            reservedCount: 0,
+            pendingCount: 0,
+            approvedCount: 0,
+            onLogout: _handleLogout,
+          );
+        }
+
+        return _AccountView(
+          user: user,
+          isLoggedIn: true,
+          reservedCount: data!.reservedCount,
+          pendingCount: data.pendingCount,
+          approvedCount: data.approvedCount,
+          onLogout: _handleLogout,
+        );
+      },
+    );
+  }
+}
+
+class _AccountData {
+  final user_model.User user;
+  final int reservedCount;
+  final int pendingCount;
+  final int approvedCount;
+
+  _AccountData({
+    required this.user,
+    required this.reservedCount,
+    required this.pendingCount,
+    required this.approvedCount,
+  });
+}
+
+class _AccountView extends StatelessWidget {
+  const _AccountView({
+    required this.user,
+    required this.isLoggedIn,
+    required this.reservedCount,
+    required this.pendingCount,
+    required this.approvedCount,
+    required this.onLogout,
+  });
+
+  final user_model.User user;
+  final bool isLoggedIn;
+  final int reservedCount;
+  final int pendingCount;
+  final int approvedCount;
+  final Future<void> Function() onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= 1100;
+    if (isDesktop) {
+      return _AccountDesktopPage(
+        user: user,
+        reservedCount: reservedCount,
+        pendingCount: pendingCount,
+        approvedCount: approvedCount,
+        onLogout: onLogout,
+      );
+    }
+
     return DefaultTextStyle(
       style: GoogleFonts.poppins(fontSize: 18),
       child: Stack(
@@ -24,43 +189,40 @@ class AccountScreen extends StatelessWidget {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
                     children: [
-                      // Profile Card
-                      _ProfileCardV2(),
+                      _ProfileCard(user: user),
                       const SizedBox(height: 18),
-                      // Status Row
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
+                        children: [
                           Expanded(
                             child: _StatusCardV2(
                               icon: Icons.calendar_today_rounded,
-                              count: 12,
+                              count: reservedCount,
                               label: 'Reserved',
-                              color: Color(0xFFF1B60D),
+                              color: const Color(0xFFF1B60D),
                             ),
                           ),
-                          SizedBox(width: 14),
+                          const SizedBox(width: 14),
                           Expanded(
                             child: _StatusCardV2(
                               icon: Icons.hourglass_top_rounded,
-                              count: 3,
+                              count: pendingCount,
                               label: 'Pending',
-                              color: Color(0xFFF57C1F),
+                              color: const Color(0xFFF57C1F),
                             ),
                           ),
-                          SizedBox(width: 14),
+                          const SizedBox(width: 14),
                           Expanded(
                             child: _StatusCardV2(
                               icon: Icons.check_circle_rounded,
-                              count: 9,
+                              count: approvedCount,
                               label: 'Approved',
-                              color: Color(0xFF1BC47D),
+                              color: const Color(0xFF1BC47D),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 18),
-                      // Navigation Tiles
                       _NavTile(
                         icon: Icons.calendar_month_rounded,
                         label: 'My Reservation',
@@ -77,93 +239,15 @@ class AccountScreen extends StatelessWidget {
                         onTap: () {},
                       ),
                       const SizedBox(height: 18),
-                      // Settings
                       _SettingsTile(),
                       const SizedBox(height: 18),
-                      // Logout
-                      _LogoutButton(),
+                      _LogoutButton(
+                        onPressed: isLoggedIn ? onLogout : null,
+                      ),
                     ],
                   ),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileCardV2 extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.07),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF5664AE),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.person, color: Colors.white, size: 38),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'Kirk Papiolek',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                        color: Colors.black,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'papiollekks@nu-lipa.edu.ph',
-                      style: TextStyle(fontSize: 14, color: Color(0xFF7A7A7A)),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Professor 2 | SACE',
-                      style: TextStyle(fontSize: 14, color: Color(0xFF7A7A7A)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () {},
-                child: const Padding(
-                  padding: EdgeInsets.all(6),
-                  child: Icon(Icons.edit, size: 20, color: Color(0xFF5664AE)),
-                ),
-              ),
             ),
           ),
         ],
@@ -326,13 +410,17 @@ class _SettingsTile extends StatelessWidget {
 }
 
 class _LogoutButton extends StatelessWidget {
+  const _LogoutButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(top: 8),
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: onPressed,
         icon: const Icon(Icons.logout, color: Color(0xFF5664AE)),
         label: const Text(
           'Log out',
@@ -355,7 +443,19 @@ class _LogoutButton extends StatelessWidget {
 }
 
 class _AccountDesktopPage extends StatelessWidget {
-  const _AccountDesktopPage();
+  const _AccountDesktopPage({
+    required this.user,
+    required this.reservedCount,
+    required this.pendingCount,
+    required this.approvedCount,
+    required this.onLogout,
+  });
+
+  final user_model.User user;
+  final int reservedCount;
+  final int pendingCount;
+  final int approvedCount;
+  final Future<void> Function() onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -408,7 +508,7 @@ class _AccountDesktopPage extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: const Color(0x77FFFFFF)),
                         ),
-                        child: const _ProfileCard(),
+                        child: _ProfileCard(user: user),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -485,10 +585,24 @@ class _PageTitle extends StatelessWidget {
 }
 
 class _ProfileCard extends StatelessWidget {
-  const _ProfileCard();
+  const _ProfileCard({required this.user});
+
+  final user_model.User user;
+
+  String get _displayMiddleInitial =>
+      user.middleInitial.isEmpty ? '' : '${user.middleInitial}.';
+
+  String get _displayName => [user.firstName, _displayMiddleInitial, user.lastName]
+      .where((value) => value.trim().isNotEmpty)
+      .join(' ')
+      .trim();
 
   @override
   Widget build(BuildContext context) {
+    final name = _displayName.isEmpty ? user.fullName : _displayName;
+    final affiliation = user.affiliation.isEmpty ? 'Not available' : user.affiliation;
+    final role = user.role.isEmpty ? 'Student' : user.role;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -507,22 +621,26 @@ class _ProfileCard extends StatelessWidget {
           ),
         ],
       ),
-      child: const Column(
+      child: Column(
         children: [
           _InfoBlock(
             icon: Icons.account_circle,
             title: 'Full Name',
             lines: [
-              ('First name:', 'Kirk'),
-              ('Middle Name:', 'Paramil'),
-              ('Last Name:', 'Papiolek'),
+              ('First name:', user.firstName.isEmpty ? 'Not set' : user.firstName),
+              ('Middle Name:', user.middleInitial.isEmpty ? 'Not set' : user.middleInitial),
+              ('Last Name:', user.lastName.isEmpty ? 'Not set' : user.lastName),
+              ('Display name:', name.isEmpty ? 'Not set' : name),
             ],
           ),
-          SizedBox(height: 14),
+          const SizedBox(height: 14),
           _InfoBlock(
             icon: Icons.apartment_rounded,
             title: 'Department',
-            lines: [('Position:', 'Faculty Teacher'), ('Affiliation:', 'SACE')],
+            lines: [
+              ('Position:', role),
+              ('Affiliation:', affiliation),
+            ],
           ),
         ],
       ),

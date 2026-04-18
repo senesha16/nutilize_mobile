@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bcrypt/bcrypt.dart';
@@ -14,14 +16,24 @@ class AuthService {
   /// Returns the created User if successful
   /// Throws exception if registration fails
   Future<user_model.User> register({
+    required String firstName,
+    required String middleInitial,
+    required String lastName,
     required String fullName,
     required String email,
     required String username,
     required String password,
+    required String affiliation,
   }) async {
     try {
       // Validate inputs
-      if (fullName.isEmpty || email.isEmpty || username.isEmpty || password.isEmpty) {
+      if (firstName.isEmpty ||
+          middleInitial.isEmpty ||
+          lastName.isEmpty ||
+          email.isEmpty ||
+          username.isEmpty ||
+          password.isEmpty ||
+          affiliation.isEmpty) {
         throw Exception('All fields are required');
       }
 
@@ -64,6 +76,11 @@ class AuthService {
             'email': email,
             'password': hashedPassword,
             'role': 'student', // Default role
+            'first_name': firstName,
+            'middle_initial': middleInitial,
+            'last_name': lastName,
+            'full_name': fullName,
+            'affiliation': affiliation,
             'created_at': DateTime.now().toIso8601String(),
             'updated_at': DateTime.now().toIso8601String(),
           })
@@ -140,9 +157,17 @@ class AuthService {
       final userJson = await _secureStorage.read(key: _userSessionKey);
       if (userJson == null) return null;
 
-      // Parse the stored JSON
-      // Note: You might want to use a proper JSON decoder here
-      return _parseUserFromJson(userJson);
+      final storedUser = _parseUserFromJson(userJson);
+      if (storedUser == null) {
+        return null;
+      }
+
+      if (_needsProfileHydration(storedUser)) {
+        final refreshedUser = await _refreshUserProfile(storedUser.email);
+        return refreshedUser ?? storedUser;
+      }
+
+      return storedUser;
     } catch (e) {
       return null;
     }
@@ -157,17 +182,7 @@ class AuthService {
   /// Save user session to secure storage
   Future<void> _saveUserSession(user_model.User user) async {
     try {
-      final userJson = '''
-{
-  "user_id": ${user.userId},
-  "username": "${user.username}",
-  "email": "${user.email}",
-  "role": "${user.role}",
-  "created_at": "${user.createdAt.toIso8601String()}",
-  "updated_at": "${user.updatedAt?.toIso8601String()}"
-}
-''';
-      await _secureStorage.write(key: _userSessionKey, value: userJson);
+      await _secureStorage.write(key: _userSessionKey, value: jsonEncode(user.toJson()));
     } catch (e) {
       throw Exception('Failed to save session: $e');
     }
@@ -176,44 +191,55 @@ class AuthService {
   /// Parse User from simple JSON string
   user_model.User? _parseUserFromJson(String jsonString) {
     try {
+      final decoded = jsonDecode(jsonString);
+      if (decoded is! Map<String, dynamic>) {
+        return _parseLegacyUserFromJson(jsonString);
+      }
+      return user_model.User.fromJson(decoded);
+    } catch (e) {
+      return _parseLegacyUserFromJson(jsonString);
+    }
+  }
+
+  user_model.User? _parseLegacyUserFromJson(String jsonString) {
+    try {
       final map = <String, dynamic>{};
-      
-      // Simple parsing using regex patterns
+
       if (jsonString.contains('user_id')) {
         final userIdMatch = RegExp(r'"user_id"\s*:\s*(\d+)').firstMatch(jsonString);
         if (userIdMatch != null) {
           map['user_id'] = int.parse(userIdMatch.group(1)!);
         }
       }
-      
+
       if (jsonString.contains('username')) {
         final usernameMatch = RegExp(r'"username"\s*:\s*"([^"]+)"').firstMatch(jsonString);
         if (usernameMatch != null) {
           map['username'] = usernameMatch.group(1);
         }
       }
-      
+
       if (jsonString.contains('email')) {
         final emailMatch = RegExp(r'"email"\s*:\s*"([^"]+)"').firstMatch(jsonString);
         if (emailMatch != null) {
           map['email'] = emailMatch.group(1);
         }
       }
-      
+
       if (jsonString.contains('role')) {
         final roleMatch = RegExp(r'"role"\s*:\s*"([^"]+)"').firstMatch(jsonString);
         if (roleMatch != null) {
           map['role'] = roleMatch.group(1);
         }
       }
-      
+
       if (jsonString.contains('created_at')) {
         final createdMatch = RegExp(r'"created_at"\s*:\s*"([^"]+)"').firstMatch(jsonString);
         if (createdMatch != null) {
           map['created_at'] = createdMatch.group(1);
         }
       }
-      
+
       if (map.containsKey('user_id') && map.containsKey('username') && map.containsKey('email')) {
         return user_model.User.fromJson(map);
       }
@@ -221,6 +247,26 @@ class AuthService {
     } catch (e) {
       return null;
     }
+  }
+
+  Future<user_model.User?> _refreshUserProfile(String email) async {
+    try {
+      final response = await _supabase.from('users').select().eq('email', email).maybeSingle();
+      if (response == null) {
+        return null;
+      }
+      return user_model.User.fromJson(response as Map<String, dynamic>);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  bool _needsProfileHydration(user_model.User user) {
+    return user.firstName.isEmpty ||
+        user.middleInitial.isEmpty ||
+        user.lastName.isEmpty ||
+        user.fullName.isEmpty ||
+        user.affiliation.isEmpty;
   }
 
   /// Validate email format

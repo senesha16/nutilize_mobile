@@ -42,11 +42,18 @@ class RequestsScreen extends StatelessWidget {
                     },
                   ),
                   const SizedBox(height: 14),
-                  const _RequestTypeCard(
+                  _RequestTypeCard(
                     icon: Icons.chair_alt_rounded,
                     titleTop: 'NU Lipa',
                     titleBottom: 'Item Reservation',
                     subtitle: 'Borrow Items',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const ItemReservationFormPage(),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 14),
                   const _RequestTypeCard(
@@ -100,10 +107,10 @@ class _RequestsDesktopPage extends StatelessWidget {
                 color: const Color(0xFFE7EAF5),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Column(
+              child: Column(
                 children: [
-                  _RequestHeadline(),
-                  SizedBox(height: 20),
+                  const _RequestHeadline(),
+                  const SizedBox(height: 20),
                   Row(
                     children: [
                       Expanded(
@@ -112,18 +119,34 @@ class _RequestsDesktopPage extends StatelessWidget {
                           titleTop: 'NU Lipa',
                           titleBottom: 'Room Reservation',
                           subtitle: 'Borrow Rooms & Items',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const RoomReservationFormPage(),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                      SizedBox(width: 14),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: _RequestTypeCard(
                           icon: Icons.chair_alt_rounded,
                           titleTop: 'NU Lipa',
                           titleBottom: 'Item Reservation',
                           subtitle: 'Borrow Items',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const ItemReservationFormPage(),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                      SizedBox(width: 14),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: _RequestTypeCard(
                           icon: Icons.fitness_center_rounded,

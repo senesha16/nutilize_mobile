@@ -308,9 +308,14 @@ class _FloatingDockNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 420;
+
     return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      height: isCompactWidth ? 60 : 64,
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompactWidth ? 6 : 8,
+        vertical: isCompactWidth ? 5 : 6,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F1F1),
         borderRadius: BorderRadius.circular(32),
@@ -355,6 +360,8 @@ class _DockNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 420;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -362,7 +369,7 @@ class _DockNavItem extends StatelessWidget {
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,
         height: double.infinity,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
+        margin: EdgeInsets.symmetric(horizontal: isCompactWidth ? 3 : 4),
         decoration: BoxDecoration(
           color: isActive ? const Color(0xFF5A67B0) : const Color(0xFFD8D8D8),
           borderRadius: BorderRadius.circular(18),
@@ -370,7 +377,7 @@ class _DockNavItem extends StatelessWidget {
         child: Center(
           child: Icon(
             icon,
-            size: 21,
+            size: isCompactWidth ? 20 : 21,
             color: isActive ? Colors.white : const Color(0xFF8D8D8D),
           ),
         ),

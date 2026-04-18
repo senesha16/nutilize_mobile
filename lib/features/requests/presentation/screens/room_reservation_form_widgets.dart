@@ -1396,3 +1396,775 @@ class _SwipeToProceedButtonState extends State<_SwipeToProceedButton> {
     );
   }
 }
+
+/// Simple Item Reservation Form - Only items, no rooms
+class ItemReservationFormPage extends StatefulWidget {
+  const ItemReservationFormPage({super.key});
+
+  @override
+  State<ItemReservationFormPage> createState() => _ItemReservationFormPageState();
+}
+
+class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
+  final _inventoryService = InventoryService();
+  final _reservationService = ReservationService();
+  final _authService = AuthService();
+  
+  late Future<List<Item>> _itemsFuture;
+  final Set<int> _selectedItemIds = {};
+  String _activityName = '';
+  DateTime? _selectedDate;
+  TimeOfDay? _fromTime;
+  TimeOfDay? _toTime;
+  int _currentStep = 1; // Step 1: Activity details, Step 2: Items, Step 3: Confirmation
+  bool _isSubmitting = false;
+  Map<String, bool> _categoryNoNeed = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _itemsFuture = _inventoryService.getAvailableItems();
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? now,
+      firstDate: now,
+      lastDate: DateTime(now.year + 2),
+      builder: (context, child) => Theme(
+        data: ThemeData.light().copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: Color(0xFF233B7A),
+            onPrimary: Colors.white,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
+  }
+
+  Future<void> _pickFromTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _fromTime ?? TimeOfDay.now(),
+      builder: (context, child) => Theme(
+        data: ThemeData.light().copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: Color(0xFF233B7A),
+            onPrimary: Colors.white,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+
+    if (picked != null) {
+      setState(() => _fromTime = picked);
+    }
+  }
+
+  Future<void> _pickToTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _toTime ?? TimeOfDay.now(),
+      builder: (context, child) => Theme(
+        data: ThemeData.light().copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: Color(0xFF233B7A),
+            onPrimary: Colors.white,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+
+    if (picked != null) {
+      setState(() => _toTime = picked);
+    }
+  }
+
+  Future<void> _submitReservation() async {
+    if (_activityName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter activity name')),
+      );
+      return;
+    }
+
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a date')),
+      );
+      return;
+    }
+
+    if (_fromTime == null || _toTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select time range')),
+      );
+      return;
+    }
+
+    if (_selectedItemIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select at least one item')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final currentUser = await _authService.getCurrentUser();
+      if (currentUser == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('User not logged in')),
+          );
+        }
+        return;
+      }
+
+      final reservation = await _reservationService.createReservation(
+        userId: currentUser.userId,
+        activityName: _activityName,
+        overallStatus: 'pending',
+      );
+
+      for (int itemId in _selectedItemIds) {
+        await _reservationService.addItemToReservation(
+          reservationId: reservation.reservationId,
+          itemId: itemId,
+          quantity: 1,
+        );
+      }
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => _RequestSubmittedFeedbackPage(
+              reservationId: reservation.reservationId,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF233B7A),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      FutureBuilder(
+                        future: _authService.getCurrentUser(),
+                        builder: (context, snapshot) {
+                          final userName = snapshot.data?.firstName ?? 'User';
+                          return Text(
+                            'Hello, $userName 👋',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                            ),
+                          );
+                        },
+                      ),
+                      InkWell(
+                        onTap: () => Navigator.pop(context),
+                        child: const Icon(Icons.close, color: Colors.white, size: 28),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Lets start your reservation',
+                    style: TextStyle(color: Colors.white, fontSize: 15),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Take a moment to fill in your details',
+                    style: TextStyle(color: Colors.white, fontSize: 15),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      // Step 1: Activity details
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: _currentStep >= 1
+                              ? const Color(0xFFF5BC1D)
+                              : const Color(0xFFD1D5DB),
+                          size: 22,
+                        ),
+                      ),
+                      // Step 2: Items
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: _currentStep >= 2
+                              ? const Color(0xFFF5BC1D)
+                              : const Color(0xFFD1D5DB),
+                          size: 22,
+                        ),
+                      ),
+                      // Step 3: Confirmation
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: _currentStep >= 3
+                              ? const Color(0xFFF5BC1D)
+                              : const Color(0xFFD1D5DB),
+                          size: 22,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _currentStep == 1
+                  ? _buildActivityDetailsStep()
+                  : _currentStep == 2
+                      ? _buildItemSelectionStep()
+                      : _buildConfirmationStep(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityDetailsStep() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0x14000000),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(18),
+              children: [
+                // Activity Name
+                const Text(
+                  'Activity Name',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  onChanged: (value) => setState(() => _activityName = value),
+                  decoration: InputDecoration(
+                    hintText: 'Enter activity name',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Date Selection
+                const Text(
+                  'Date',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: _pickDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDEDED),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _selectedDate != null
+                          ? '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}'
+                          : 'Select date',
+                      style: TextStyle(
+                        color: _selectedDate != null ? Colors.black : Colors.grey[600],
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Time Range
+                const Text(
+                  'Time Range',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: _pickFromTime,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEDEDED),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _fromTime != null
+                                ? _fromTime!.format(context)
+                                : 'From:',
+                            style: TextStyle(
+                              color: _fromTime != null
+                                  ? Colors.black
+                                  : Colors.grey[600],
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InkWell(
+                        onTap: _pickToTime,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEDEDED),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _toTime != null ? _toTime!.format(context) : 'To:',
+                            style: TextStyle(
+                              color: _toTime != null
+                                  ? Colors.black
+                                  : Colors.grey[600],
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton(
+                onPressed: _activityName.isEmpty ||
+                        _selectedDate == null ||
+                        _fromTime == null ||
+                        _toTime == null
+                    ? null
+                    : () => setState(() => _currentStep = 2),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF233B7A),
+                  disabledBackgroundColor: Colors.grey[300],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Next',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemSelectionStep() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0x14000000),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(18),
+              children: [
+                const Text(
+                  'Select Items to Borrow',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _buildItemsSection(),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => setState(() => _currentStep = 1),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[300],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Back',
+                        style: TextStyle(color: Colors.black)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _selectedItemIds.isEmpty
+                        ? null
+                        : () => setState(() => _currentStep = 3),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF233B7A),
+                      disabledBackgroundColor: Colors.grey[300],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Next',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemsSection() {
+    return FutureBuilder<List<Item>>(
+      future: _itemsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text('Error loading items: ${snapshot.error}'),
+          );
+        }
+
+        final allItems = snapshot.data ?? [];
+        final itemsByCategory = <String, List<Item>>{};
+
+        for (var item in allItems) {
+          itemsByCategory.putIfAbsent(item.category, () => []).add(item);
+        }
+
+        for (var category in ['MultiMedia', 'Electronics', 'Utility']) {
+          itemsByCategory.putIfAbsent(category, () => []);
+        }
+
+        for (var category in itemsByCategory.keys) {
+          _categoryNoNeed.putIfAbsent(category, () => false);
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: itemsByCategory.entries.map((entry) {
+            final category = entry.key;
+            final items = entry.value;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      category,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      '${items.length}',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Checkbox(
+                      value: _categoryNoNeed[category] ?? false,
+                      onChanged: (_) {
+                        setState(() {
+                          final isNoNeed = !(_categoryNoNeed[category] ?? false);
+                          _categoryNoNeed[category] = isNoNeed;
+                          if (isNoNeed) {
+                            for (var item in items) {
+                              _selectedItemIds.remove(item.itemId);
+                            }
+                          }
+                        });
+                      },
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      activeColor: const Color(0xFF233B7A),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          final isNoNeed = !(_categoryNoNeed[category] ?? false);
+                          _categoryNoNeed[category] = isNoNeed;
+                          if (isNoNeed) {
+                            for (var item in items) {
+                              _selectedItemIds.remove(item.itemId);
+                            }
+                          }
+                        });
+                      },
+                      child: const Text('No need',
+                          style: TextStyle(fontSize: 15)),
+                    ),
+                  ],
+                ),
+                ...items.map((item) {
+                  final isSelected = _selectedItemIds.contains(item.itemId);
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Checkbox(
+                        value: isSelected,
+                        onChanged: (_) {
+                          setState(() {
+                            if (isSelected) {
+                              _selectedItemIds.remove(item.itemId);
+                            } else {
+                              _selectedItemIds.add(item.itemId);
+                              _categoryNoNeed[category] = false;
+                            }
+                          });
+                        },
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        activeColor: const Color(0xFF233B7A),
+                      ),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (isSelected) {
+                              _selectedItemIds.remove(item.itemId);
+                            } else {
+                              _selectedItemIds.add(item.itemId);
+                              _categoryNoNeed[category] = false;
+                            }
+                          });
+                        },
+                        child: Text(item.itemName,
+                            style: const TextStyle(fontSize: 15)),
+                      ),
+                    ],
+                  );
+                }).toList(),
+                const SizedBox(height: 18),
+              ],
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildConfirmationStep() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0x14000000),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(18),
+              children: [
+                const Text(
+                  'Confirm Your Reservation',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
+                ),
+                const Divider(),
+                const SizedBox(height: 8),
+                const Text('Activity:',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                Text(_activityName),
+                const SizedBox(height: 16),
+                const Text('Date:',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                Text(
+                  _selectedDate != null
+                      ? '${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}'
+                      : 'N/A',
+                ),
+                const SizedBox(height: 16),
+                const Text('Time Range:',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                Text(
+                  _fromTime != null && _toTime != null
+                      ? '${_fromTime!.format(context)} - ${_toTime!.format(context)}'
+                      : 'N/A',
+                ),
+                const SizedBox(height: 16),
+                const Text('Items Selected:',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                FutureBuilder<List<Item>>(
+                  future: _itemsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                      final allItems = snapshot.data ?? [];
+                      final selectedItems = allItems
+                          .where((i) => _selectedItemIds.contains(i.itemId))
+                          .toList();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: selectedItems
+                            .map((item) => Text('• ${item.itemName}'))
+                            .toList(),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => setState(() => _currentStep = 2),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[300],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Back',
+                        style: TextStyle(color: Colors.black)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isSubmitting ? null : _submitReservation,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF233B7A),
+                      disabledBackgroundColor: Colors.grey[300],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      _isSubmitting ? 'Submitting...' : 'Confirm',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

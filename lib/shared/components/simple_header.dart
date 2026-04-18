@@ -8,20 +8,22 @@ class SimpleHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 420;
+
     return Column(
       children: [
         Container(
-          height: 56,
+          height: isCompactWidth ? 52 : 56,
           color: AuthPalette.royalBlue,
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: EdgeInsets.symmetric(horizontal: isCompactWidth ? 16 : 20),
           child: Text(
             title,
             style: GoogleFonts.poppins(
               color: Colors.white,
               fontWeight: FontWeight.w700,
-              fontSize: 22,
-              letterSpacing: 1.2,
+              fontSize: isCompactWidth ? 18 : 22,
+              letterSpacing: isCompactWidth ? 1.0 : 1.2,
             ),
             textAlign: TextAlign.center,
           ),

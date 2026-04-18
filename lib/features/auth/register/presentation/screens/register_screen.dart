@@ -14,7 +14,25 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _nameController = TextEditingController();
+  static const List<String> _affiliationOptions = [
+    'BS Accountancy',
+    'BS Management Accounting',
+    'BSBA Financial Management',
+    'BSBA Marketing Management',
+    'BS Tourism Management',
+    'BS Medical Technology',
+    'BS Nursing',
+    'BS Psychology',
+    'BS Architechture',
+    'BS Computer Science',
+    'BS Information Technology',
+    'BS Civil Engineering',
+    'Bachelor of Multimedia Arts',
+  ];
+
+  final _firstNameController = TextEditingController();
+  final _middleInitialController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -24,6 +42,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   
   String _passwordValue = '';
   String _confirmPasswordValue = '';
+  String? _selectedAffiliation;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -75,9 +94,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _confirmPasswordValue.isNotEmpty &&
       _confirmPasswordValue == _passwordValue;
   bool get _isFormValid =>
-      _nameController.text.isNotEmpty &&
+      _firstNameController.text.isNotEmpty &&
+      _middleInitialController.text.isNotEmpty &&
+      _lastNameController.text.isNotEmpty &&
       _emailController.text.isNotEmpty &&
       _usernameController.text.isNotEmpty &&
+      _selectedAffiliation != null &&
       _isStrong &&
       _isConfirmMatched;
 
@@ -91,7 +113,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _middleInitialController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
@@ -114,11 +138,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      final user = await _authService.register(
-        fullName: _nameController.text.trim(),
+      final fullName = '${_firstNameController.text.trim()} ${_middleInitialController.text.trim()} ${_lastNameController.text.trim()}';
+      await _authService.register(
+        firstName: _firstNameController.text.trim(),
+        middleInitial: _middleInitialController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        fullName: fullName,
         email: _emailController.text.trim(),
         username: _usernameController.text.trim(),
         password: _passwordController.text,
+        affiliation: _selectedAffiliation!,
       );
 
       if (!mounted) return;
@@ -167,9 +196,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const AuthBrandHeader(),
             const SizedBox(height: 24),
             AuthInput(
-              hint: 'Enter your full name',
+              hint: 'Enter your first name',
+              icon: Icons.person_outline,
+              controller: _firstNameController,
+              enabled: !_isLoading,
+            ),
+            const SizedBox(height: 16),
+            AuthInput(
+              hint: 'Middle initial',
               icon: Icons.badge_outlined,
-              controller: _nameController,
+              controller: _middleInitialController,
+              enabled: !_isLoading,
+            ),
+            const SizedBox(height: 16),
+            AuthInput(
+              hint: 'Enter your last name',
+              icon: Icons.person_outline,
+              controller: _lastNameController,
               enabled: !_isLoading,
             ),
             const SizedBox(height: 16),
@@ -178,6 +221,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
               icon: Icons.email_outlined,
               controller: _emailController,
               enabled: !_isLoading,
+            ),
+            const SizedBox(height: 16),
+            _AffiliationDropdown(
+              value: _selectedAffiliation,
+              options: _affiliationOptions,
+              enabled: !_isLoading,
+              onChanged: (value) {
+                setState(() => _selectedAffiliation = value);
+              },
             ),
             const SizedBox(height: 16),
             AuthInput(
@@ -365,6 +417,80 @@ class _RequirementLine extends StatelessWidget {
           fontSize: 16,
           fontWeight: FontWeight.w500,
         ),
+      ),
+    );
+  }
+}
+
+class _AffiliationDropdown extends StatelessWidget {
+  const _AffiliationDropdown({
+    required this.value,
+    required this.options,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String? value;
+  final List<String> options;
+  final bool enabled;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: AuthPalette.inputBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            color: AuthPalette.yellow,
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.school_outlined,
+              size: 21,
+              color: Colors.white,
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: value,
+                  isExpanded: true,
+                  hint: Text(
+                    'Select affiliation',
+                    style: TextStyle(
+                      color: AuthPalette.hint.withOpacity(enabled ? 1.0 : 0.6),
+                      fontSize: 33 / 2,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  style: const TextStyle(
+                    color: AuthPalette.royalBlue,
+                    fontSize: 33 / 2,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  iconEnabledColor: AuthPalette.royalBlue,
+                  items: options
+                      .map(
+                        (option) => DropdownMenuItem<String>(
+                          value: option,
+                          child: Text(option),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: enabled ? onChanged : null,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

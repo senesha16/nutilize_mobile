@@ -6,17 +6,19 @@ class NutilizeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 420;
+
     return Column(
       children: [
         Container(
-          height: 56,
+          height: isCompactWidth ? 52 : 56,
           color: AuthPalette.royalBlue,
           child: Row(
             children: [
               Padding(
-                padding: const EdgeInsets.only(left: 14),
+                padding: EdgeInsets.only(left: isCompactWidth ? 12 : 14),
                 child: SizedBox(
-                  height: 36,
+                  height: isCompactWidth ? 32 : 36,
                   child: Image.asset(
                     'assets/images/nutilize_logo.png',
                     fit: BoxFit.contain,
@@ -35,23 +37,28 @@ class NutilizeHeader extends StatelessWidget {
               ),
               const Spacer(),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
+                padding: EdgeInsets.symmetric(horizontal: isCompactWidth ? 4 : 6),
                 child: Row(
                   children: [
-                    _HeaderIconButton(icon: Icons.search, onTap: () {}),
-                    const SizedBox(width: 10),
+                    _HeaderIconButton(
+                      icon: Icons.search,
+                      onTap: () {},
+                      compact: isCompactWidth,
+                    ),
+                    SizedBox(width: isCompactWidth ? 8 : 10),
                     Stack(
                       children: [
                         _HeaderIconButton(
                           icon: Icons.notifications,
                           onTap: () {},
+                          compact: isCompactWidth,
                         ),
                         Positioned(
-                          right: 4,
-                          top: 4,
+                          right: isCompactWidth ? 3 : 4,
+                          top: isCompactWidth ? 3 : 4,
                           child: Container(
-                            width: 10,
-                            height: 10,
+                            width: isCompactWidth ? 8 : 10,
+                            height: isCompactWidth ? 8 : 10,
                             decoration: BoxDecoration(
                               color: Colors.red,
                               shape: BoxShape.circle,
@@ -76,7 +83,12 @@ class NutilizeHeader extends StatelessWidget {
 class _HeaderIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  const _HeaderIconButton({required this.icon, required this.onTap});
+  final bool compact;
+  const _HeaderIconButton({
+    required this.icon,
+    required this.onTap,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -87,9 +99,9 @@ class _HeaderIconButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: SizedBox(
-          width: 38,
-          height: 38,
-          child: Icon(icon, color: AuthPalette.royalBlue, size: 22),
+          width: compact ? 34 : 38,
+          height: compact ? 34 : 38,
+          child: Icon(icon, color: AuthPalette.royalBlue, size: compact ? 20 : 22),
         ),
       ),
     );

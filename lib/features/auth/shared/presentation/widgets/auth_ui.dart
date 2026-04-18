@@ -18,6 +18,8 @@ class AuthScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 420;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -40,11 +42,16 @@ class AuthScaffold extends StatelessWidget {
                       constraints: BoxConstraints(
                         minHeight: constraints.maxHeight,
                       ),
-                      child: Center(
+                      child: Align(
+                        alignment: isCompactWidth
+                            ? Alignment.topCenter
+                            : Alignment.center,
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 24,
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            isCompactWidth ? 18 : 24,
+                            16,
+                            24,
                           ),
                           child: child,
                         ),
@@ -108,9 +115,16 @@ class AuthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 420;
+
     return Container(
       width: MediaQuery.sizeOf(context).width >= 1024 ? 600 : double.infinity,
-      padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
+      padding: EdgeInsets.fromLTRB(
+        isCompactWidth ? 20 : 32,
+        isCompactWidth ? 20 : 28,
+        isCompactWidth ? 20 : 32,
+        isCompactWidth ? 18 : 24,
+      ),
       decoration: BoxDecoration(
         color: AuthPalette.cardLight,
         borderRadius: BorderRadius.circular(16),
@@ -133,19 +147,21 @@ class AuthBrandHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 420;
+
     return Column(
       children: [
         SizedBox(
-          height: 64,
+          height: isCompactWidth ? 54 : 64,
           child: Image.asset(
             'assets/images/nutilize_logo.png',
             fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) {
-              return const Text(
+              return Text(
                 'NUTILIZE',
                 style: TextStyle(
                   color: AuthPalette.royalBlue,
-                  fontSize: 46,
+                  fontSize: isCompactWidth ? 36 : 46,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -1.1,
                 ),
@@ -153,13 +169,13 @@ class AuthBrandHeader extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(height: 10),
-        const Text(
+        SizedBox(height: isCompactWidth ? 8 : 10),
+        Text(
           'Campus Resource & Reservation Management System',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: AuthPalette.royalBlue,
-            fontSize: 38 / 2,
+            fontSize: isCompactWidth ? 15 : 38 / 2,
             fontWeight: FontWeight.w700,
             height: 1.15,
           ),
@@ -195,8 +211,10 @@ class AuthInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 420;
+
     return Container(
-      height: 48,
+      height: isCompactWidth ? 46 : 48,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(9),
         border: Border.all(color: AuthPalette.inputBorder),
@@ -205,10 +223,10 @@ class AuthInput extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 52,
+            width: isCompactWidth ? 48 : 52,
             color: AuthPalette.yellow,
             alignment: Alignment.center,
-            child: Icon(icon, size: 21, color: Colors.white),
+            child: Icon(icon, size: isCompactWidth ? 19 : 21, color: Colors.white),
           ),
           Expanded(
             child: TextField(
@@ -220,16 +238,16 @@ class AuthInput extends StatelessWidget {
               enabled: enabled,
               style: TextStyle(
                 color: AuthPalette.royalBlue,
-                fontSize: 33 / 2,
+                fontSize: isCompactWidth ? 15 : 33 / 2,
                 fontWeight: FontWeight.w500,
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                contentPadding: EdgeInsets.symmetric(horizontal: isCompactWidth ? 12 : 14),
                 hintText: hint,
                 hintStyle: TextStyle(
                   color: AuthPalette.hint.withOpacity(enabled ? 1.0 : 0.6),
-                  fontSize: 33 / 2,
+                  fontSize: isCompactWidth ? 15 : 33 / 2,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -237,7 +255,7 @@ class AuthInput extends StatelessWidget {
           ),
           if (trailing != null)
             Container(
-              width: 58,
+              width: isCompactWidth ? 52 : 58,
               color: AuthPalette.yellow,
               alignment: Alignment.center,
               child: trailing,
@@ -260,9 +278,11 @@ class AuthPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 420;
+
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: isCompactWidth ? 52 : 56,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(11),
@@ -291,7 +311,10 @@ class AuthPrimaryButton extends StatelessWidget {
           ),
           child: Text(
             text,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            style: TextStyle(
+              fontSize: isCompactWidth ? 18 : 20,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ),
