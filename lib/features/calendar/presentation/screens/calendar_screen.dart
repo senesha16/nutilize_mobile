@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 //import 'package:flutter/cupertino.dart';
+import 'package:nutilize/core/models/reservation.dart';
+import 'package:nutilize/core/services/reservation_service.dart';
 import 'package:nutilize/core/widgets/notification_panel.dart';
+import 'package:nutilize/features/auth/data/auth_service.dart';
 import 'package:nutilize/features/home/presentation/widgets/reservation_status_dialog.dart';
 //import 'package:nutilize/shared/components/nutilize_header.dart';
 import 'package:nutilize/shared/components/simple_header.dart';
@@ -49,18 +52,102 @@ class _IphoneStyleCalendarState extends State<_IphoneStyleCalendar> {
   int selectedDay = DateTime.now().day;
   int selectedMonth = DateTime.now().month;
   int selectedYear = DateTime.now().year;
-  // Example event data (for demo, keyed by yyyy-mm-dd)
-  final Map<String, List<Map<String, String>>> reservations = {
-    '2026-04-01': [
-      {'time': '9:00 AM', 'title': 'Room 101', 'desc': 'Math Class'},
-    ],
-    '2026-04-02': [
-      {'time': '10:00 AM', 'title': 'Room 201', 'desc': 'Maundy Thursday'},
-      {'time': '2:00 PM', 'title': 'Room 530', 'desc': 'Project Meeting'},
-    ],
-  };
+  final AuthService _authService = AuthService();
+  final ReservationService _reservationService = ReservationService();
+  bool _isLoadingReservations = true;
+  String? _reservationError;
+  final Map<String, List<_CalendarReservationEvent>> reservations = {};
 
-  Future<void> _showSchedulePopup(Map<String, String> event) async {
+  @override
+  void initState() {
+    super.initState();
+    _loadApprovedReservations();
+  }
+
+  Future<void> _loadApprovedReservations() async {
+    try {
+      final user = await _authService.getCurrentUser();
+      if (user == null) {
+        if (!mounted) return;
+        setState(() {
+          _isLoadingReservations = false;
+          _reservationError = 'Please log in to view calendar reservations.';
+        });
+        return;
+      }
+
+      final userReservations = await _reservationService.getUserReservations(
+        user.userId,
+      );
+      final mapped = <String, List<_CalendarReservationEvent>>{};
+
+      for (final reservation in userReservations) {
+        if ((reservation.overallStatus ?? '').toLowerCase() != 'approved') {
+          continue;
+        }
+
+        final eventStart = reservation.startOfActivity ?? reservation.dateOfActivity;
+        final eventEnd = reservation.endOfActivity;
+        if (eventStart == null) continue;
+
+        final dateKey = _formatDateKey(eventStart);
+        mapped.putIfAbsent(dateKey, () => []);
+        mapped[dateKey]!.add(
+          _CalendarReservationEvent(
+            reservationId: reservation.reservationId,
+            title: reservation.activityName,
+            description: _buildEventDescription(reservation),
+            startTime: eventStart,
+            endTime: eventEnd,
+          ),
+        );
+      }
+
+      for (final events in mapped.values) {
+        events.sort((a, b) => a.startTime.compareTo(b.startTime));
+      }
+
+      if (!mounted) return;
+      setState(() {
+        reservations
+          ..clear()
+          ..addAll(mapped);
+        _isLoadingReservations = false;
+        _reservationError = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingReservations = false;
+        _reservationError = 'Failed to load reservations.';
+      });
+    }
+  }
+
+  String _formatDateKey(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  String _formatTime(DateTime dateTime) {
+    final hour = dateTime.hour;
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    final isPm = hour >= 12;
+    final hour12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    final suffix = isPm ? 'PM' : 'AM';
+    return '$hour12:$minute $suffix';
+  }
+
+  String _buildEventDescription(Reservation reservation) {
+    if (reservation.startOfActivity != null && reservation.endOfActivity != null) {
+      return '${_formatTime(reservation.startOfActivity!)} - ${_formatTime(reservation.endOfActivity!)}';
+    }
+    if (reservation.startOfActivity != null) {
+      return _formatTime(reservation.startOfActivity!);
+    }
+    return 'Approved reservation';
+  }
+
+  Future<void> _showSchedulePopup(_CalendarReservationEvent event) async {
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -87,8 +174,8 @@ class _IphoneStyleCalendarState extends State<_IphoneStyleCalendar> {
                 const SizedBox(height: 22),
                 _PopupInfoRow(
                   icon: Icons.apartment_rounded,
-                  title: event['title'] ?? 'Room 530',
-                  subtitle: event['desc'] ?? 'ML Tournament | Intrams',
+                  title: event.title,
+                  subtitle: event.description,
                 ),
                 const SizedBox(height: 14),
                 const _PopupInfoRow(
@@ -100,7 +187,9 @@ class _IphoneStyleCalendarState extends State<_IphoneStyleCalendar> {
                 _PopupInfoRow(
                   icon: Icons.access_time_filled,
                   title: 'Time',
-                  subtitle: event['time'] ?? '10:00 am - 5:00 pm',
+                  subtitle: event.endTime == null
+                      ? _formatTime(event.startTime)
+                      : '${_formatTime(event.startTime)} - ${_formatTime(event.endTime!)}',
                 ),
                 const SizedBox(height: 22),
                 SizedBox(
@@ -116,7 +205,10 @@ class _IphoneStyleCalendarState extends State<_IphoneStyleCalendar> {
                     ),
                     onPressed: () {
                       Navigator.of(dialogContext).pop();
-                      showReservationStatusDialog(context);
+                      showReservationStatusDialog(
+                        context,
+                        reservationId: event.reservationId,
+                      );
                     },
                     child: const Text(
                       'Check Reservation',
@@ -268,22 +360,9 @@ class _IphoneStyleCalendarState extends State<_IphoneStyleCalendar> {
     // Agenda for selected day
     final String selectedKey =
         '${selectedYear.toString().padLeft(4, '0')}-${selectedMonth.toString().padLeft(2, '0')}-${selectedDay.toString().padLeft(2, '0')}';
-    final agenda = reservations[selectedKey] ?? [];
-
-    // Time slots from 7:00AM to 5:00PM
-    final List<String> timeSlots = [
-      for (int h = 7; h <= 17; h++)
-        h < 12
-            ? '${h}:00 AM'
-            : h == 12
-            ? '12:00 PM'
-            : '${h - 12}:00 PM',
-    ];
-
-    // Map reservations by time for quick lookup (assume 'time' is like '7:00 AM')
-    final Map<String, Map<String, String>> agendaByTime = Map.fromEntries(
-      agenda.map((event) => MapEntry(event['time'] ?? '', event)),
-    );
+    final agenda = List<_CalendarReservationEvent>.from(
+      reservations[selectedKey] ?? const [],
+    )..sort((a, b) => a.startTime.compareTo(b.startTime));
 
     return Container(
       color: bgColor,
@@ -474,110 +553,130 @@ class _IphoneStyleCalendarState extends State<_IphoneStyleCalendar> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              ...timeSlots.map((slot) {
-                final event = agendaByTime[slot];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 60,
-                        child: Text(
-                          slot,
-                          style: const TextStyle(
-                            color: subTextColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
+              const SizedBox(height: 8),
+              if (_isLoadingReservations)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: CircularProgressIndicator(color: selectedColor),
+                  ),
+                )
+              else if (_reservationError != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Text(
+                    _reservationError!,
+                    style: const TextStyle(
+                      color: Color(0xFFEF5350),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              else if (agenda.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  child: Text(
+                    'No approved reservations for this day.',
+                    style: TextStyle(
+                      color: subTextColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
+              else
+                ...agenda.map((event) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: InkWell(
+                      onTap: () => _showSchedulePopup(event),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 2),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE9ECF7),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(right: 10, top: 2),
+                              child: const Icon(
+                                Icons.apartment_rounded,
+                                color: selectedColor,
+                                size: 22,
+                              ),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    event.title,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16,
+                                      color: selectedColor,
+                                    ),
+                                  ),
+                                  Text(
+                                    event.description,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                  Text(
+                                    event.endTime == null
+                                        ? _formatTime(event.startTime)
+                                        : '${_formatTime(event.startTime)} - ${_formatTime(event.endTime!)}',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: subTextColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: event == null
-                            ? const Divider(
-                                thickness: 1,
-                                color: Color(0xFFE0E0E0),
-                              )
-                            : InkWell(
-                                onTap: () => _showSchedulePopup(event),
-                                borderRadius: BorderRadius.circular(14),
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 2),
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE9ECF7),
-                                    borderRadius: BorderRadius.circular(14),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.08),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Container(
-                                        margin: const EdgeInsets.only(
-                                          right: 10,
-                                          top: 2,
-                                        ),
-                                        child: const Icon(
-                                          Icons.apartment_rounded,
-                                          color: selectedColor,
-                                          size: 22,
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              event['title'] ?? '',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 16,
-                                                color: selectedColor,
-                                              ),
-                                            ),
-                                            if (event['desc'] != null)
-                                              Text(
-                                                event['desc']!,
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  color: textColor,
-                                                ),
-                                              ),
-                                            Text(
-                                              event['time'] ?? '',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: subTextColor,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
+                    ),
+                  );
+                }),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _CalendarReservationEvent {
+  final int reservationId;
+  final String title;
+  final String description;
+  final DateTime startTime;
+  final DateTime? endTime;
+
+  const _CalendarReservationEvent({
+    required this.reservationId,
+    required this.title,
+    required this.description,
+    required this.startTime,
+    required this.endTime,
+  });
 }
 
 // _CalendarGrid widget at top level
