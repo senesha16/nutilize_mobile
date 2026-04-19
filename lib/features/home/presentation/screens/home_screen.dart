@@ -7,6 +7,8 @@ import 'package:nutilize/shared/components/nutilize_header.dart';
 import 'package:nutilize/features/auth/data/auth_service.dart';
 import 'package:nutilize/core/services/reservation_service.dart';
 import 'package:nutilize/core/models/reservation.dart';
+import 'package:nutilize/core/services/office_service.dart';
+import 'dart:async';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -766,7 +768,17 @@ class _ReservationHighlightCardState extends State<_ReservationHighlightCard> {
 
         final reservations = snapshot.data ?? [];
 
-        if (reservations.isEmpty) {
+        // Filter out completed/expired events
+        final activeReservations = reservations.where((r) {
+          if (r.endOfActivity != null) {
+            if (DateTime.now().isAfter(r.endOfActivity!)) {
+              return false;
+            }
+          }
+          return true;
+        }).toList();
+
+        if (activeReservations.isEmpty) {
           return Container(
             margin: const EdgeInsets.symmetric(vertical: 8),
             padding: const EdgeInsets.all(14),
@@ -786,7 +798,7 @@ class _ReservationHighlightCardState extends State<_ReservationHighlightCard> {
         // Show reservations in a vertical list
         return Column(
           children: [
-            ...reservations.map((reservation) {
+            ...activeReservations.map((reservation) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _ReservationCardWidget(
@@ -802,7 +814,7 @@ class _ReservationHighlightCardState extends State<_ReservationHighlightCard> {
   }
 }
 
-class _ReservationCardWidget extends StatelessWidget {
+class _ReservationCardWidget extends StatefulWidget {
   final Reservation reservation;
   final VoidCallback onRefresh;
 
@@ -810,6 +822,52 @@ class _ReservationCardWidget extends StatelessWidget {
     required this.reservation,
     required this.onRefresh,
   });
+
+  @override
+  State<_ReservationCardWidget> createState() => _ReservationCardWidgetState();
+}
+
+class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
+  Future<int> _getApprovedCount(int reservationId) async {
+    try {
+      final reservationService = ReservationService();
+      final officeService = OfficeService();
+      final approvals = await reservationService.getReservationApprovals(reservationId);
+      final offices = await officeService.getAllOffices();
+      final officeMap = {for (var office in offices) office.officeId: office};
+
+      const approvalStages = [
+        ['designated item owner', 'item owner', 'designated owner'],
+        ['program chair', 'programchair', 'chair'],
+        ['sdao'],
+        ['do'],
+        ['security'],
+        ['physical facilities', 'facilities', 'physical'],
+      ];
+
+      final approvedStages = <int>{};
+      for (final approval in approvals) {
+        if (approval.status != 'approved') continue;
+        final office = officeMap[approval.officeId];
+        if (office == null) continue;
+
+        final normalized = office.departmentName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+        for (var i = 0; i < approvalStages.length; i++) {
+          final hasMatch = approvalStages[i].any((alias) {
+            final normalizedAlias = alias.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+            return normalized == normalizedAlias;
+          });
+          if (hasMatch) {
+            approvedStages.add(i);
+            break;
+          }
+        }
+      }
+      return approvedStages.length;
+    } catch (e) {
+      return 0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -851,7 +909,7 @@ class _ReservationCardWidget extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  getIconForActivity(reservation.activityName),
+                  getIconForActivity(widget.reservation.activityName),
                   color: Colors.white,
                   size: 30,
                 ),
@@ -862,7 +920,7 @@ class _ReservationCardWidget extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      reservation.activityName,
+                      widget.reservation.activityName,
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -872,10 +930,10 @@ class _ReservationCardWidget extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      _getStatusLabel(reservation.overallStatus),
+                      _getStatusLabel(widget.reservation.overallStatus),
                       style: TextStyle(
                         fontSize: 14,
-                        color: _getStatusColor(reservation.overallStatus),
+                        color: _getStatusColor(widget.reservation.overallStatus),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -905,7 +963,7 @@ class _ReservationCardWidget extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    _formatDate(reservation.createdAt),
+                    _formatDate(widget.reservation.createdAt),
                     style: const TextStyle(
                       color: Color(0xFF777777),
                       fontSize: 13,
@@ -924,7 +982,7 @@ class _ReservationCardWidget extends StatelessWidget {
                   onTap: () {
                     showReservationStatusDialog(
                       context,
-                      reservationId: reservation.reservationId,
+                      reservationId: widget.reservation.reservationId,
                     );
                   },
                   child: Container(
@@ -957,6 +1015,24 @@ class _ReservationCardWidget extends StatelessWidget {
                 child: const Icon(Icons.edit_square, color: Color(0xFF8E8E8E)),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          // Countdown timer - only show if all 5 approvals are complete
+          FutureBuilder<int>(
+            future: _getApprovedCount(widget.reservation.reservationId),
+            builder: (context, snapshot) {
+              final approvedCount = snapshot.data ?? 0;
+              if (approvedCount < 6 ||
+                  widget.reservation.startOfActivity == null ||
+                  widget.reservation.endOfActivity == null) {
+                return const SizedBox.shrink();
+              }
+
+              return _CountdownTimerWidget(
+                startTime: widget.reservation.startOfActivity!,
+                endTime: widget.reservation.endOfActivity!,
+              );
+            },
           ),
         ],
       ),
@@ -995,6 +1071,93 @@ class _ReservationCardWidget extends StatelessWidget {
       default:
         return const Color(0xFF696969);
     }
+  }
+}
+
+class _CountdownTimerWidget extends StatefulWidget {
+  final DateTime startTime;
+  final DateTime endTime;
+
+  const _CountdownTimerWidget({
+    required this.startTime,
+    required this.endTime,
+  });
+
+  @override
+  State<_CountdownTimerWidget> createState() => _CountdownTimerWidgetState();
+}
+
+class _CountdownTimerWidgetState extends State<_CountdownTimerWidget> {
+  late Timer _timer;
+  String _timerText = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _updateCountdown();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        _updateCountdown();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  void _updateCountdown() {
+    final now = DateTime.now();
+    String newText;
+
+    if (now.isAfter(widget.endTime)) {
+      newText = 'Event completed';
+    } else if (now.isBefore(widget.startTime)) {
+      final diff = widget.startTime.difference(now);
+      if (diff.inDays > 0) {
+        newText = 'In ${diff.inDays}d ${diff.inHours % 24}h';
+      } else if (diff.inHours > 0) {
+        newText = 'In ${diff.inHours}h ${diff.inMinutes % 60}m';
+      } else {
+        newText = 'In ${diff.inMinutes}m';
+      }
+    } else {
+      final diff = widget.endTime.difference(now);
+      newText = '${diff.inHours}h ${diff.inMinutes % 60}m left';
+    }
+
+    if (mounted && _timerText != newText) {
+      setState(() {
+        _timerText = newText;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF233B7A),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.schedule, color: Color(0xFFF5BC1D), size: 16),
+          const SizedBox(width: 6),
+          Text(
+            _timerText,
+            style: const TextStyle(
+              color: Color(0xFFF5BC1D),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

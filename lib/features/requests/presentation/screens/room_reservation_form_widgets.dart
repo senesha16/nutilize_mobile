@@ -238,6 +238,11 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
   String? _chairQuantityRange;
   String? _tableType;
   String _tableQuantity = '';
+  
+  // Date and time fields
+  DateTime? _eventDate;
+  TimeOfDay? _eventStartTime;
+  TimeOfDay? _eventEndTime;
 
   @override
   void initState() {
@@ -282,6 +287,9 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
         userId: currentUser.userId,
         activityName: _activityName,
         overallStatus: 'pending',
+        dateOfActivity: _eventDate,
+        startOfActivity: _eventStartTime,
+        endOfActivity: _eventEndTime,
       );
 
       for (int roomId in _selectedRoomIds) {
@@ -457,6 +465,15 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                                         },
                                         onAttendanceChanged: (attendance) {
                                           setState(() => _selectedAttendance = attendance);
+                                        },
+                                        onDateChanged: (date) {
+                                          setState(() => _eventDate = date);
+                                        },
+                                        onFromTimeChanged: (time) {
+                                          setState(() => _eventStartTime = time);
+                                        },
+                                        onToTimeChanged: (time) {
+                                          setState(() => _eventEndTime = time);
                                         },
                                       ),
                       ),
@@ -1184,8 +1201,17 @@ class _ReservationDetailsFormFieldsState extends State<_ReservationDetailsFormFi
 class _ReservationFormFields extends StatefulWidget {
   final Function(String)? onActivityNameChanged;
   final Function(String)? onAttendanceChanged;
+  final Function(DateTime)? onDateChanged;
+  final Function(TimeOfDay)? onFromTimeChanged;
+  final Function(TimeOfDay)? onToTimeChanged;
 
-  const _ReservationFormFields({this.onActivityNameChanged, this.onAttendanceChanged});
+  const _ReservationFormFields({
+    this.onActivityNameChanged,
+    this.onAttendanceChanged,
+    this.onDateChanged,
+    this.onFromTimeChanged,
+    this.onToTimeChanged,
+  });
 
   @override
   State<_ReservationFormFields> createState() => _ReservationFormFieldsState();
@@ -1220,7 +1246,10 @@ class _ReservationFormFieldsState extends State<_ReservationFormFields> {
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _selectedDate = picked);
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+      widget.onDateChanged?.call(picked);
+    }
   }
 
   Future<void> _pickTime(bool isFrom) async {
@@ -1236,8 +1265,13 @@ class _ReservationFormFieldsState extends State<_ReservationFormFields> {
     );
     if (picked != null) {
       setState(() {
-        if (isFrom) _fromTime = picked;
-        else _toTime = picked;
+        if (isFrom) {
+          _fromTime = picked;
+          widget.onFromTimeChanged?.call(picked);
+        } else {
+          _toTime = picked;
+          widget.onToTimeChanged?.call(picked);
+        }
       });
     }
   }
@@ -1553,6 +1587,9 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
         userId: currentUser.userId,
         activityName: _activityName,
         overallStatus: 'pending',
+        dateOfActivity: _selectedDate,
+        startOfActivity: _fromTime,
+        endOfActivity: _toTime,
       );
 
       for (int itemId in _selectedItemIds) {

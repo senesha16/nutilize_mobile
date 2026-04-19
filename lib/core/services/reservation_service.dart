@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nutilize/core/models/reservation.dart';
 import 'package:nutilize/core/models/reservation_approval.dart';
@@ -12,14 +13,45 @@ class ReservationService {
     required int userId,
     required String activityName,
     String? overallStatus = 'pending',
+    DateTime? dateOfActivity,
+    TimeOfDay? startOfActivity,
+    TimeOfDay? endOfActivity,
   }) async {
     try {
+      // Combine date and times into full DateTime objects
+      DateTime? startDateTime;
+      DateTime? endDateTime;
+
+      if (dateOfActivity != null) {
+        if (startOfActivity != null) {
+          startDateTime = DateTime(
+            dateOfActivity.year,
+            dateOfActivity.month,
+            dateOfActivity.day,
+            startOfActivity.hour,
+            startOfActivity.minute,
+          );
+        }
+        if (endOfActivity != null) {
+          endDateTime = DateTime(
+            dateOfActivity.year,
+            dateOfActivity.month,
+            dateOfActivity.day,
+            endOfActivity.hour,
+            endOfActivity.minute,
+          );
+        }
+      }
+
       final response = await _supabase
           .from('reservations')
           .insert({
             'user_id': userId,
             'activity_name': activityName,
             'overall_status': overallStatus,
+            'Date_of_Activity': dateOfActivity?.toIso8601String(),
+            'Start_of_activity': startDateTime?.toIso8601String(),
+            'End_of_Activity': endDateTime?.toIso8601String(),
             'created_at': DateTime.now().toIso8601String(),
           })
           .select()
@@ -231,5 +263,79 @@ class ReservationService {
     } catch (e) {
       throw Exception('Failed to delete reservation: $e');
     }
+  }
+
+  /// Get rooms borrowed in a reservation
+  Future<List<BorrowedRoom>> getReservationRooms(int reservationId) async {
+    try {
+      final response = await _supabase
+          .from('reservation_details')
+          .select(
+              'reservation_rooms_id, reservation_rooms!inner(room_id, rooms!inner(room_id, room_number, room_type))')
+          .eq('reservation_id', reservationId)
+          .not('reservation_rooms_id', 'is', null);
+
+      return (response as List)
+          .map((json) => BorrowedRoom.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Get items borrowed in a reservation
+  Future<List<BorrowedItem>> getReservationItems(int reservationId) async {
+    try {
+      final response = await _supabase
+          .from('reservation_details')
+          .select(
+              'quantity, reservation_items_id, reservation_items!inner(item_id, items!inner(item_id, item_name, category))')
+          .eq('reservation_id', reservationId)
+          .not('reservation_items_id', 'is', null);
+
+      return (response as List)
+          .map((json) => BorrowedItem.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+}
+
+class BorrowedRoom {
+  final String roomNumber;
+  final String roomType;
+
+  BorrowedRoom({required this.roomNumber, required this.roomType});
+
+  factory BorrowedRoom.fromJson(Map<String, dynamic> json) {
+    final rooms = json['reservation_rooms'] as Map<String, dynamic>?;
+    final room = rooms?['rooms'] as Map<String, dynamic>?;
+    return BorrowedRoom(
+      roomNumber: room?['room_number']?.toString() ?? 'Unknown',
+      roomType: room?['room_type']?.toString() ?? 'Unknown',
+    );
+  }
+}
+
+class BorrowedItem {
+  final String itemName;
+  final String category;
+  final int quantity;
+
+  BorrowedItem({
+    required this.itemName,
+    required this.category,
+    required this.quantity,
+  });
+
+  factory BorrowedItem.fromJson(Map<String, dynamic> json) {
+    final items = json['reservation_items'] as Map<String, dynamic>?;
+    final item = items?['items'] as Map<String, dynamic>?;
+    return BorrowedItem(
+      itemName: item?['item_name']?.toString() ?? 'Unknown',
+      category: item?['category']?.toString() ?? 'Unknown',
+      quantity: json['quantity'] as int? ?? 1,
+    );
   }
 }

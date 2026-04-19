@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'dart:async';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:nutilize/core/services/reservation_service.dart';
 import 'package:nutilize/core/services/office_service.dart';
 import 'package:nutilize/core/models/reservation_approval.dart';
 import 'package:nutilize/core/models/office.dart';
+import 'package:nutilize/core/models/reservation.dart';
 
 const List<_ApprovalStageDefinition> _approvalStages = [
   _ApprovalStageDefinition(
@@ -31,6 +33,10 @@ const List<_ApprovalStageDefinition> _approvalStages = [
   _ApprovalStageDefinition(
     displayName: 'Security',
     aliases: ['security'],
+  ),
+  _ApprovalStageDefinition(
+    displayName: 'Physical Facilities',
+    aliases: ['physical facilities', 'facilities', 'physical'],
   ),
 ];
 
@@ -275,6 +281,30 @@ class _ReservationStatusDialogContentState
                         ),
                       ],
                     ),
+                  ),
+                  // Countdown Timer Section
+                  FutureBuilder<Reservation?>(
+                    future: widget.reservationId != null
+                        ? ReservationService().getReservation(widget.reservationId!)
+                        : Future.value(null),
+                    builder: (context, snapshot) {
+                      final reservation = snapshot.data;
+                      if (reservation == null ||
+                          reservation.startOfActivity == null ||
+                          reservation.endOfActivity == null) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return _CountdownTimer(
+                        eventStartDate: reservation.startOfActivity,
+                        eventEndDate: reservation.endOfActivity,
+                        reservationId: widget.reservationId,
+                      );
+                    },
+                  ),
+                  // Borrowed Items Section
+                  _BorrowedItemsSection(
+                    reservationId: widget.reservationId,
                   ),
                   // Buttons
                   Padding(
@@ -1166,4 +1196,321 @@ class _ProgressIndicatorState extends State<_ProgressIndicator> {
       },
     );
   }
+}
+
+class _CountdownTimer extends StatefulWidget {
+  final DateTime? eventStartDate;
+  final DateTime? eventEndDate;
+  final int? reservationId;
+
+  const _CountdownTimer({
+    required this.eventStartDate,
+    required this.eventEndDate,
+    this.reservationId,
+  });
+
+  @override
+  State<_CountdownTimer> createState() => _CountdownTimerState();
+}
+
+class _CountdownTimerState extends State<_CountdownTimer> {
+  late Timer? _updateTimer;
+  late String _timerText;
+  late String _timerLabel;
+  late bool _isEventComplete;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateTimerText();
+    _updateTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _updateTimerText());
+      }
+    });
+  }
+
+  void _updateTimerText() {
+    final now = DateTime.now();
+    final startDate = widget.eventStartDate;
+    final endDate = widget.eventEndDate;
+
+    if (endDate != null && now.isAfter(endDate)) {
+      _isEventComplete = true;
+      _timerText = 'Event Completed';
+      _timerLabel = '';
+      return;
+    }
+
+    _isEventComplete = false;
+
+    if (startDate != null && now.isBefore(startDate)) {
+      final diff = startDate.difference(now);
+      final days = diff.inDays;
+      final hours = diff.inHours % 24;
+      final minutes = diff.inMinutes % 60;
+      final seconds = diff.inSeconds % 60;
+
+      _timerLabel = 'Event starts in';
+      if (days > 0) {
+        _timerText = '$days days $hours hrs $minutes min';
+      } else if (hours > 0) {
+        _timerText = '$hours hrs $minutes min $seconds sec';
+      } else {
+        _timerText = '$minutes min $seconds sec';
+      }
+    } else if (endDate != null) {
+      final diff = endDate.difference(now);
+      final hours = diff.inHours;
+      final minutes = diff.inMinutes % 60;
+      final seconds = diff.inSeconds % 60;
+
+      _timerLabel = 'Event time remaining';
+      _timerText = '$hours hrs $minutes min $seconds sec';
+    } else {
+      _timerText = 'No event date set';
+      _timerLabel = '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _updateTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isEventComplete) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF233B7A),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _timerLabel,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _timerText,
+            style: const TextStyle(
+              color: Color(0xFFF5BC1D),
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BorrowedItemsSection extends StatefulWidget {
+  final int? reservationId;
+
+  const _BorrowedItemsSection({required this.reservationId});
+
+  @override
+  State<_BorrowedItemsSection> createState() => _BorrowedItemsSectionState();
+}
+
+class _BorrowedItemsSectionState extends State<_BorrowedItemsSection> {
+  late Future<_BorrowedItemsData> _dataFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _dataFuture = _loadBorrowedItems();
+  }
+
+  Future<_BorrowedItemsData> _loadBorrowedItems() async {
+    if (widget.reservationId == null) {
+      return _BorrowedItemsData(rooms: [], items: []);
+    }
+
+    final reservationService = ReservationService();
+    try {
+      final rooms = await reservationService.getReservationRooms(widget.reservationId!);
+      final items = await reservationService.getReservationItems(widget.reservationId!);
+      return _BorrowedItemsData(rooms: rooms, items: items);
+    } catch (e) {
+      return _BorrowedItemsData(rooms: [], items: []);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<_BorrowedItemsData>(
+      future: _dataFuture,
+      builder: (context, snapshot) {
+        final data = snapshot.data ?? _BorrowedItemsData(rooms: [], items: []);
+
+        if (data.rooms.isEmpty && data.items.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Borrowed Items & Rooms',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (data.rooms.isNotEmpty) ...[
+                const Text(
+                  'Rooms',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Color(0xFF233B7A),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...data.rooms.map(
+                  (room) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5BC1D),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(
+                            Icons.apartment,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Room ${room.roomNumber}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                room.roomType,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              if (data.rooms.isNotEmpty && data.items.isNotEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(height: 1),
+                ),
+              if (data.items.isNotEmpty) ...[
+                const Text(
+                  'Items',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: Color(0xFF233B7A),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...data.items.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5BC1D),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(
+                            Icons.inventory_2,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.itemName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                '${item.category} • Qty: ${item.quantity}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BorrowedItemsData {
+  final List<BorrowedRoom> rooms;
+  final List<BorrowedItem> items;
+
+  _BorrowedItemsData({required this.rooms, required this.items});
 }
