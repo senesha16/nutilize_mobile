@@ -115,12 +115,30 @@ class _ReservationSummaryCardState extends State<_ReservationSummaryCard> {
   }
 }
 
-class _RequestSubmittedFeedbackPage extends StatelessWidget {
+class _RequestSubmittedFeedbackPage extends StatefulWidget {
   final int reservationId;
 
   const _RequestSubmittedFeedbackPage({
+    super.key,
     required this.reservationId,
   });
+
+  @override
+  State<_RequestSubmittedFeedbackPage> createState() =>
+      _RequestSubmittedFeedbackPageState();
+}
+
+class _RequestSubmittedFeedbackPageState
+    extends State<_RequestSubmittedFeedbackPage> {
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +175,7 @@ class _RequestSubmittedFeedbackPage extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Reservation #$reservationId submitted!\nThe admin has already received your request.',
+                'Reservation #${widget.reservationId} submitted!\nThe admin has already received your request.',
                 style: const TextStyle(
                   color: Color(0xFF333333),
                   fontSize: 20,

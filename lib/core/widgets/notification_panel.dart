@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:nutilize/core/models/app_notification.dart';
+import 'package:nutilize/core/services/notification_service.dart';
 
 class NotificationBellButton extends StatelessWidget {
   const NotificationBellButton({super.key, this.size = 34});
@@ -7,55 +9,59 @@ class NotificationBellButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => showNotificationsPanel(context),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: size,
-            height: size,
-            decoration: const BoxDecoration(
-              color: Color(0xFF34479A),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Icon(
-              Icons.notifications,
-              color: Colors.white,
-              size: size * 0.56,
-            ),
-          ),
-          Positioned(
-            right: -1,
-            top: -1,
-            child: Container(
-              width: 11,
-              height: 11,
-              decoration: BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFF2F2F2), width: 1.5),
+    return AnimatedBuilder(
+      animation: NotificationService.instance,
+      builder: (context, _) {
+        final hasUnread = NotificationService.instance.unreadCount > 0;
+
+        return GestureDetector(
+          onTap: () => showNotificationsPanel(context),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: size,
+                height: size,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF34479A),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.notifications,
+                  color: Colors.white,
+                  size: size * 0.56,
+                ),
               ),
-            ),
+              if (hasUnread)
+                Positioned(
+                  right: -1,
+                  top: -1,
+                  child: Container(
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFFF2F2F2),
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
 Future<void> showNotificationsPanel(BuildContext context) async {
-  const items = [
-    ('Maria Lerma has submitte...', true, true),
-    ('Joel Enriquez has submitte...', true, true),
-    ('Mars Fha Uthang has sub...', false, false),
-    ('Maria Santos has submitt...', true, true),
-    ('Anne Lopez has submitted ...', false, false),
-    ('Juan Dela Cruz has submit...', false, false),
-    ('Phengie Pira has submitte...', false, false),
-    ('Jepoy Dizon has submitte...', true, true),
-  ];
+  final service = NotificationService.instance;
+  final items = service.notifications;
+  await service.markAllAsRead();
 
   await showGeneralDialog<void>(
     context: context,
@@ -104,8 +110,25 @@ Future<void> showNotificationsPanel(BuildContext context) async {
                     radius: const Radius.circular(8),
                     child: ListView.builder(
                       padding: EdgeInsets.zero,
-                      itemCount: items.length,
+                      itemCount: items.isEmpty ? 1 : items.length,
                       itemBuilder: (context, index) {
+                        if (items.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 24,
+                            ),
+                            child: Text(
+                              'No notifications yet.',
+                              style: TextStyle(
+                                color: Color(0xFFEFF2FF),
+                                fontSize: 17,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          );
+                        }
+
                         final item = items[index];
                         final alternate = index.isEven;
                         return Container(
@@ -126,11 +149,13 @@ Future<void> showNotificationsPanel(BuildContext context) async {
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
-                                  Icons.person,
+                                  item.type == 'approved'
+                                      ? Icons.check_circle
+                                      : Icons.cancel,
                                   size: 24,
-                                  color: item.$2
+                                  color: item.type == 'approved'
                                       ? const Color(0xFFF5BC1D)
-                                      : const Color(0xFFCDD5E8),
+                                      : const Color(0xFFFFA7A7),
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -139,7 +164,7 @@ Future<void> showNotificationsPanel(BuildContext context) async {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      item.$1,
+                                      item.title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -148,9 +173,11 @@ Future<void> showNotificationsPanel(BuildContext context) async {
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                    const Text(
-                                      'Check the status update',
-                                      style: TextStyle(
+                                    Text(
+                                      item.message,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
                                         color: Color(0xFFCDD5E8),
                                         fontSize: 17,
                                         fontWeight: FontWeight.w500,
@@ -164,9 +191,9 @@ Future<void> showNotificationsPanel(BuildContext context) async {
                                 width: 12,
                                 height: 12,
                                 decoration: BoxDecoration(
-                                  color: item.$3
-                                      ? const Color(0xFF4BA0FF)
-                                      : const Color(0xFF62749C),
+                                  color: item.isRead
+                                      ? const Color(0xFF62749C)
+                                      : const Color(0xFF4BA0FF),
                                   shape: BoxShape.circle,
                                 ),
                               ),

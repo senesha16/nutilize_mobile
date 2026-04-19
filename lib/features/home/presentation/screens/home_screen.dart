@@ -1,9 +1,12 @@
 import 'package:nutilize/core/widgets/notification_panel.dart';
+import 'package:nutilize/core/services/notification_service.dart';
 import 'package:nutilize/features/auth/shared/presentation/widgets/auth_ui.dart';
 import 'package:nutilize/features/home/presentation/widgets/reservation_status_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:nutilize/shared/components/nutilize_header.dart';
 import 'package:nutilize/features/auth/data/auth_service.dart';
+import 'package:nutilize/core/services/reservation_service.dart';
+import 'package:nutilize/core/models/reservation.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -15,6 +18,43 @@ class HomeScreen extends StatelessWidget {
       return const _HomeDesktopDashboard();
     }
 
+    return const _HomeMobileView();
+  }
+}
+
+class _HomeMobileView extends StatefulWidget {
+  const _HomeMobileView();
+
+  @override
+  State<_HomeMobileView> createState() => _HomeMobileViewState();
+}
+
+class _HomeMobileViewState extends State<_HomeMobileView>
+    with WidgetsBindingObserver {
+  final GlobalKey<_ReservationHighlightCardState> _reservationKey =
+      GlobalKey<_ReservationHighlightCardState>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _reservationKey.currentState?.refreshReservations();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return ColoredBox(
       color: const Color(0xFFF2F2F2),
       child: SafeArea(
@@ -28,7 +68,7 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   const _GreetingRow(),
                   const SizedBox(height: 14),
-                  const _ReservationHighlightCard(),
+                  _ReservationHighlightCard(key: _reservationKey),
                   const SizedBox(height: 14),
                   const Text(
                     'Recent Activity',
@@ -660,12 +700,131 @@ class _ActivityCard extends StatelessWidget {
   }
 }
 
-class _ReservationHighlightCard extends StatelessWidget {
-  const _ReservationHighlightCard();
+class _ReservationHighlightCard extends StatefulWidget {
+  const _ReservationHighlightCard({super.key});
+
+  @override
+  State<_ReservationHighlightCard> createState() =>
+      _ReservationHighlightCardState();
+}
+
+class _ReservationHighlightCardState extends State<_ReservationHighlightCard> {
+  final _authService = AuthService();
+  final _reservationService = ReservationService();
+  late Future<List<Reservation>> _reservationsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReservations();
+  }
+
+  void _loadReservations() {
+    _reservationsFuture = _getReservations();
+  }
+
+  void refreshReservations() {
+    setState(() {
+      _loadReservations();
+    });
+  }
+
+  Future<List<Reservation>> _getReservations() async {
+    final user = await _authService.getCurrentUser();
+    if (user == null) return [];
+    return await _reservationService.getUserReservations(user.userId);
+  }
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<List<Reservation>>(
+      future: _reservationsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6E8F2),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6E8F2),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Text('Error: ${snapshot.error}'),
+          );
+        }
+
+        final reservations = snapshot.data ?? [];
+
+        if (reservations.isEmpty) {
+          return Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6E8F2),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Center(
+              child: Text(
+                'No active reservations',
+                style: TextStyle(color: Color(0xFF696969)),
+              ),
+            ),
+          );
+        }
+
+        // Show reservations in a vertical list
+        return Column(
+          children: [
+            ...reservations.map((reservation) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _ReservationCardWidget(
+                  reservation: reservation,
+                  onRefresh: _loadReservations,
+                ),
+              );
+            }).toList(),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ReservationCardWidget extends StatelessWidget {
+  final Reservation reservation;
+  final VoidCallback onRefresh;
+
+  const _ReservationCardWidget({
+    required this.reservation,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Determine icon based on activity type
+    IconData getIconForActivity(String activityName) {
+      final name = activityName.toLowerCase();
+      if (name.contains('room')) return Icons.apartment_rounded;
+      if (name.contains('item') || name.contains('borrow')) return Icons.shopping_bag_rounded;
+      if (name.contains('gym')) return Icons.sports_gymnastics_rounded;
+      if (name.contains('av') || name.contains('multimedia')) return Icons.videocam_rounded;
+      return Icons.event_rounded;
+    }
+
     return Container(
+      width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -691,28 +850,34 @@ class _ReservationHighlightCard extends StatelessWidget {
                   color: AuthPalette.royalBlue,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
-                  Icons.apartment_rounded,
+                child: Icon(
+                  getIconForActivity(reservation.activityName),
                   color: Colors.white,
                   size: 30,
                 ),
               ),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Room 530',
-                      style: TextStyle(
-                        fontSize: 22,
+                      reservation.activityName,
+                      style: const TextStyle(
+                        fontSize: 18,
                         fontWeight: FontWeight.w700,
                         color: Colors.black,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      'ML Tournament | Intrams',
-                      style: TextStyle(fontSize: 16, color: Color(0xFF696969)),
+                      _getStatusLabel(reservation.overallStatus),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _getStatusColor(reservation.overallStatus),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -734,16 +899,16 @@ class _ReservationHighlightCard extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.place, size: 16, color: Color(0xFF848484)),
-                SizedBox(width: 6),
+                const Icon(Icons.calendar_today, size: 16, color: Color(0xFF848484)),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'Fifth Floor of NU Lipa Infront of Library',
-                    style: TextStyle(
+                    _formatDate(reservation.createdAt),
+                    style: const TextStyle(
                       color: Color(0xFF777777),
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -751,28 +916,16 @@ class _ReservationHighlightCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 8),
-          const Row(
-            children: [
-              Icon(Icons.schedule, size: 16, color: Color(0xFF848484)),
-              SizedBox(width: 8),
-              Text(
-                '10:00 am - 5:00 pm',
-                style: TextStyle(
-                  color: Color(0xFF777777),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
           const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
                 child: GestureDetector(
                   onTap: () {
-                    showReservationStatusDialog(context);
+                    showReservationStatusDialog(
+                      context,
+                      reservationId: reservation.reservationId,
+                    );
                   },
                   child: Container(
                     height: 40,
@@ -782,10 +935,10 @@ class _ReservationHighlightCard extends StatelessWidget {
                     ),
                     alignment: Alignment.center,
                     child: const Text(
-                      'Reservation',
+                      'View Details',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -797,7 +950,7 @@ class _ReservationHighlightCard extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: Color(0xFFD4D4D4),
+                  color: const Color(0xFFD4D4D4),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 alignment: Alignment.center,
@@ -808,6 +961,40 @@ class _ReservationHighlightCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  String _getStatusLabel(String? status) {
+    switch (status) {
+      case 'pending':
+        return 'Pending Approval';
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'completed':
+        return 'Completed';
+      default:
+        return status ?? 'Unknown';
+    }
+  }
+
+  Color _getStatusColor(String? status) {
+    switch (status) {
+      case 'pending':
+        return const Color(0xFFECC67E);
+      case 'approved':
+        return const Color(0xFF4CAF50);
+      case 'rejected':
+        return const Color(0xFFEF5350);
+      case 'completed':
+        return const Color(0xFF9FD4A7);
+      default:
+        return const Color(0xFF696969);
+    }
   }
 }
 
@@ -844,28 +1031,39 @@ class NutilizeHeader extends StatelessWidget {
                   children: [
                     _HeaderIconButton(icon: Icons.search, onTap: () {}),
                     const SizedBox(width: 10),
-                    Stack(
-                      children: [
-                        _HeaderIconButton(
-                          icon: Icons.notifications,
-                          onTap: () {
-                            showNotificationsPanel(context);
-                          },
-                        ),
-                        Positioned(
-                          right: 4,
-                          top: 4,
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
+                    AnimatedBuilder(
+                      animation: NotificationService.instance,
+                      builder: (context, _) {
+                        final hasUnread =
+                            NotificationService.instance.unreadCount > 0;
+                        return Stack(
+                          children: [
+                            _HeaderIconButton(
+                              icon: Icons.notifications,
+                              onTap: () {
+                                showNotificationsPanel(context);
+                              },
                             ),
-                          ),
-                        ),
-                      ],
+                            if (hasUnread)
+                              Positioned(
+                                right: 4,
+                                top: 4,
+                                child: Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),

@@ -2,6 +2,64 @@ import 'package:flutter/material.dart';
 
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:nutilize/core/services/reservation_service.dart';
+import 'package:nutilize/core/services/office_service.dart';
+import 'package:nutilize/core/models/reservation_approval.dart';
+import 'package:nutilize/core/models/office.dart';
+
+const List<_ApprovalStageDefinition> _approvalStages = [
+  _ApprovalStageDefinition(
+    displayName: 'Designated Item Owner',
+    aliases: [
+      'designated item owner',
+      'item owner',
+      'designated owner',
+    ],
+  ),
+  _ApprovalStageDefinition(
+    displayName: 'Program chair',
+    aliases: ['program chair', 'programchair', 'chair'],
+  ),
+  _ApprovalStageDefinition(
+    displayName: 'SDAO',
+    aliases: ['sdao'],
+  ),
+  _ApprovalStageDefinition(
+    displayName: 'DO',
+    aliases: ['do'],
+  ),
+  _ApprovalStageDefinition(
+    displayName: 'Security',
+    aliases: ['security'],
+  ),
+];
+
+String _normalizeOfficeName(String value) {
+  return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+}
+
+int? _findStageIndex(String departmentName) {
+  final normalized = _normalizeOfficeName(departmentName);
+  for (var i = 0; i < _approvalStages.length; i++) {
+    final hasMatch = _approvalStages[i].aliases
+        .map(_normalizeOfficeName)
+        .contains(normalized);
+    if (hasMatch) {
+      return i;
+    }
+  }
+  return null;
+}
+
+class _ApprovalStageDefinition {
+  final String displayName;
+  final List<String> aliases;
+
+  const _ApprovalStageDefinition({
+    required this.displayName,
+    required this.aliases,
+  });
+}
 
 class NUtilizeLogo extends StatelessWidget {
   final double height;
@@ -44,7 +102,10 @@ class NUtilizeLogo extends StatelessWidget {
   }
 }
 
-Future<void> showReservationStatusDialog(BuildContext context) async {
+Future<void> showReservationStatusDialog(
+  BuildContext context, {
+  int? reservationId,
+}) async {
   await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -55,6 +116,7 @@ Future<void> showReservationStatusDialog(BuildContext context) async {
       return _ReservationStatusDialogContent(
         size: size,
         bottomPadding: bottomPadding,
+        reservationId: reservationId,
       );
     },
   );
@@ -63,9 +125,11 @@ Future<void> showReservationStatusDialog(BuildContext context) async {
 class _ReservationStatusDialogContent extends StatefulWidget {
   final Size size;
   final double bottomPadding;
+  final int? reservationId;
   const _ReservationStatusDialogContent({
     required this.size,
     required this.bottomPadding,
+    this.reservationId,
   });
 
   @override
@@ -152,19 +216,8 @@ class _ReservationStatusDialogContentState
           // Progress Bar
           Container(
             margin: const EdgeInsets.only(top: 16, bottom: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                6,
-                (i) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Icon(
-                    Icons.check_circle,
-                    color: Color(0xFFF5BC1D),
-                    size: 28,
-                  ),
-                ),
-              ),
+            child: _ProgressIndicator(
+              reservationId: widget.reservationId,
             ),
           ),
           // Main Card with Timeline
@@ -217,7 +270,9 @@ class _ReservationStatusDialogContentState
                           ],
                         ),
                         const SizedBox(height: 18),
-                        _ReservationTimeline(),
+                        _ReservationTimeline(
+                          reservationId: widget.reservationId,
+                        ),
                       ],
                     ),
                   ),
@@ -728,126 +783,387 @@ class _ReservationStatusDialogContentState
   }
 }
 
-class _ReservationTimeline extends StatelessWidget {
+class _ReservationTimeline extends StatefulWidget {
+  final int? reservationId;
+
+  const _ReservationTimeline({
+    required this.reservationId,
+  });
+
+  @override
+  State<_ReservationTimeline> createState() => _ReservationTimelineState();
+}
+
+class _ReservationTimelineState extends State<_ReservationTimeline> {
+  late Future<_TimelineData> _timelineDataFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _timelineDataFuture = _loadTimelineData();
+  }
+
+  Future<_TimelineData> _loadTimelineData() async {
+    if (widget.reservationId == null) {
+      return _TimelineData(steps: []);
+    }
+
+    final reservationService = ReservationService();
+    final officeService = OfficeService();
+
+    try {
+      // Fetch approvals and offices
+      final approvals =
+          await reservationService.getReservationApprovals(widget.reservationId!);
+      final offices = await officeService.getAllOffices();
+
+      final officeMap = {for (var office in offices) office.officeId: office};
+      final List<ReservationApproval?> approvalPerStage =
+          List<ReservationApproval?>.filled(_approvalStages.length, null);
+
+      for (final approval in approvals) {
+        final office = officeMap[approval.officeId];
+        if (office == null) {
+          continue;
+        }
+
+        final stageIndex = _findStageIndex(office.departmentName);
+        if (stageIndex == null) {
+          continue;
+        }
+
+        final current = approvalPerStage[stageIndex];
+        if (current == null) {
+          approvalPerStage[stageIndex] = approval;
+          continue;
+        }
+
+        final currentIsApproved = current.status == 'approved';
+        final nextIsApproved = approval.status == 'approved';
+        if (!currentIsApproved && nextIsApproved) {
+          approvalPerStage[stageIndex] = approval;
+          continue;
+        }
+
+        final currentUpdated = current.updatedAt ?? current.createdAt;
+        final nextUpdated = approval.updatedAt ?? approval.createdAt;
+        if (nextUpdated.isAfter(currentUpdated)) {
+          approvalPerStage[stageIndex] = approval;
+        }
+      }
+
+      final List<_TimelineStep> steps = [];
+
+      for (int i = 0; i < _approvalStages.length; i++) {
+        final stageName = _approvalStages[i].displayName;
+        final approval = approvalPerStage[i] ??
+            ReservationApproval(
+              approvalId: 0,
+              reservationId: widget.reservationId!,
+              officeId: 0,
+              status: 'pending',
+              createdAt: DateTime.now(),
+            );
+
+        // Determine if this stage is completed
+        final isApproved = approval.status == 'approved';
+
+        // Generate title and subtitle based on stage and status
+        final (title, subtitle) = _generateStatusText(
+          stageName,
+          approval.status,
+          approval.approvedAt,
+        );
+
+        // Generate time (use approval time if available)
+        final timeStr = approval.approvedAt != null
+            ? _formatDateTime(approval.approvedAt!)
+            : 'Pending';
+
+        steps.add(
+          _TimelineStep(
+            time: timeStr,
+            title: title,
+            subtitle: subtitle,
+            isActive: isApproved,
+            status: approval.status,
+            stage: stageName,
+          ),
+        );
+      }
+
+      return _TimelineData(steps: steps, approvalCount: approvals.length);
+    } catch (e) {
+      // Fallback to empty state or error handling
+      return _TimelineData(steps: [], approvalCount: 0);
+    }
+  }
+
+  (String, String) _generateStatusText(
+    String stageName,
+    String status,
+    DateTime? approvedAt,
+  ) {
+    switch (status) {
+      case 'approved':
+        return (
+          'Approved by $stageName',
+          'Your request has been approved by $stageName.'
+        );
+      case 'rejected':
+        return (
+          'Rejected by $stageName',
+          'Your request was rejected by $stageName.'
+        );
+      case 'pending':
+      default:
+        return (
+          'Awaiting $stageName approval',
+          'Your request is awaiting approval from $stageName.'
+        );
+    }
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    final month = months[dateTime.month - 1];
+    final day = dateTime.day;
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    final period = dateTime.hour >= 12 ? 'PM' : 'AM';
+    final displayHour = dateTime.hour > 12
+        ? dateTime.hour - 12
+        : (dateTime.hour == 0 ? 12 : dateTime.hour);
+
+    return '$month $day $displayHour:$minute $period';
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Timeline data (hardcoded for now)
-    final steps = [
-      (
-        'Mar 12 10:10 AM',
-        'Reservation confirmed',
-        'ML Tournament | Intrams',
-        true,
-      ),
-      (
-        'Mar 12 10:07 AM',
-        'Reservation approved',
-        'Reservation approved by the administrator.',
-        false,
-      ),
-      (
-        'Mar 12 4:24 AM',
-        'Reservation under review',
-        'Your reservation request is under review.',
-        false,
-      ),
-      (
-        'Mar 12 4:03 AM',
-        'Received by system',
-        'Your reservation request has been received by the system.',
-        false,
-      ),
-      (
-        'Mar 12 3:44 AM',
-        'Received by system',
-        'Your reservation request has been received by the system.',
-        false,
-      ),
-      (
-        'Mar 12 12:04 AM',
-        'Forwarded for approval',
-        'Your reservation request has been logged and forwarded for approval.',
-        false,
-      ),
-      (
-        'Mar 12 12:01 AM',
-        'Submitted',
-        'Your reservation request has been submitted.',
-        false,
-      ),
-    ];
-    return Column(
-      children: List.generate(steps.length, (i) {
-        final (time, title, subtitle, isActive) = steps[i];
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Column(
+    return FutureBuilder<_TimelineData>(
+      future: _timelineDataFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error loading timeline: ${snapshot.error}'),
+          );
+        }
+
+        final timelineData = snapshot.data ?? _TimelineData(steps: []);
+        final steps = timelineData.steps;
+
+        if (steps.isEmpty) {
+          return const Center(
+            child: Text('No reservation selected yet.'),
+          );
+        }
+
+        return Column(
+          children: List.generate(steps.length, (i) {
+            final step = steps[i];
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 2),
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? const Color(0xFFF5BC1D)
-                        : const Color(0xFF233B7A),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                  child: isActive
-                      ? const Icon(Icons.check, color: Colors.white, size: 16)
-                      : null,
-                ),
-                if (i < steps.length - 1)
-                  Container(
-                    width: 4,
-                    height: 38,
-                    color: const Color(0xFF233B7A),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Column(
                   children: [
-                    Text(
-                      time,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF233B7A),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: isActive
+                    Container(
+                      margin: const EdgeInsets.only(top: 2),
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: step.isActive
                             ? const Color(0xFFF5BC1D)
                             : const Color(0xFF233B7A),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
+                      child: step.isActive
+                          ? const Icon(Icons.check, color: Colors.white, size: 16)
+                          : null,
                     ),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF6B6B6B),
-                        fontWeight: FontWeight.w500,
+                    if (i < steps.length - 1)
+                      Container(
+                        width: 4,
+                        height: 38,
+                        color: const Color(0xFF233B7A),
                       ),
-                    ),
-                    const SizedBox(height: 10),
                   ],
                 ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          step.time,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF233B7A),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          step.title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: step.isActive
+                                ? const Color(0xFFF5BC1D)
+                                : const Color(0xFF233B7A),
+                          ),
+                        ),
+                        Text(
+                          step.subtitle,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF6B6B6B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
+class _TimelineStep {
+  final String time;
+  final String title;
+  final String subtitle;
+  final bool isActive;
+  final String status;
+  final String stage;
+
+  _TimelineStep({
+    required this.time,
+    required this.title,
+    required this.subtitle,
+    required this.isActive,
+    required this.status,
+    required this.stage,
+  });
+}
+
+class _TimelineData {
+  final List<_TimelineStep> steps;
+  final int approvalCount;
+
+  _TimelineData({
+    required this.steps,
+    this.approvalCount = 0,
+  });
+}
+
+class _ProgressIndicator extends StatefulWidget {
+  final int? reservationId;
+
+  const _ProgressIndicator({
+    required this.reservationId,
+  });
+
+  @override
+  State<_ProgressIndicator> createState() => _ProgressIndicatorState();
+}
+
+class _ProgressIndicatorState extends State<_ProgressIndicator> {
+  late Future<int> _completedCountFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _completedCountFuture = _getCompletedApprovals();
+  }
+
+  Future<int> _getCompletedApprovals() async {
+    if (widget.reservationId == null) {
+      return 0;
+    }
+
+    final reservationService = ReservationService();
+    final officeService = OfficeService();
+    try {
+      final approvals =
+          await reservationService.getReservationApprovals(widget.reservationId!);
+      final offices = await officeService.getAllOffices();
+      final officeMap = {for (var office in offices) office.officeId: office};
+
+      final approvedStages = <int>{};
+      for (final approval in approvals) {
+        if (approval.status != 'approved') {
+          continue;
+        }
+
+        final office = officeMap[approval.officeId];
+        if (office == null) {
+          continue;
+        }
+
+        final stageIndex = _findStageIndex(office.departmentName);
+        if (stageIndex != null) {
+          approvedStages.add(stageIndex);
+        }
+      }
+
+      return approvedStages.length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<int>(
+      future: _completedCountFuture,
+      builder: (context, snapshot) {
+        final completedCount = snapshot.data ?? 0;
+        final totalStages = _approvalStages.length;
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            totalStages,
+            (i) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Icon(
+                Icons.check_circle,
+                color: i < completedCount
+                    ? const Color(0xFFF5BC1D)
+                    : const Color(0xFFD0D0D0),
+                size: 28,
               ),
             ),
-          ],
+          ),
         );
-      }),
+      },
     );
   }
 }

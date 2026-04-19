@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:nutilize/core/services/notification_service.dart';
+import 'package:nutilize/features/auth/data/auth_service.dart';
 import 'package:nutilize/features/auth/shared/presentation/widgets/auth_ui.dart';
 import 'package:nutilize/features/account/presentation/screens/account_screen.dart';
 import 'package:nutilize/features/calendar/presentation/screens/calendar_screen.dart';
@@ -16,6 +19,10 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  final AuthService _authService = AuthService();
+  final NotificationService _notificationService = NotificationService.instance;
+  Timer? _notificationTimer;
+  bool _isCheckingNotifications = false;
 
   static const _labels = ['Home', 'Calendar', 'Requests', 'Account'];
   static const _icons = [
@@ -40,6 +47,69 @@ class _MainShellState extends State<MainShell> {
   ];
 
   static const _desktopLabels = ['Home', 'Calendar', 'Requests', 'Account'];
+
+  @override
+  void initState() {
+    super.initState();
+    _startNotificationMonitoring();
+  }
+
+  @override
+  void dispose() {
+    _notificationTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startNotificationMonitoring() async {
+    final user = await _authService.getCurrentUser();
+    if (user == null || !mounted) {
+      return;
+    }
+
+    await _notificationService.initializeForUser(user.userId);
+    await _checkNotifications();
+
+    _notificationTimer?.cancel();
+    _notificationTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _checkNotifications(),
+    );
+  }
+
+  Future<void> _checkNotifications() async {
+    if (_isCheckingNotifications || !mounted) {
+      return;
+    }
+
+    _isCheckingNotifications = true;
+    try {
+      final newNotifications =
+          await _notificationService.checkForNewApprovalNotifications();
+
+      if (!mounted || newNotifications.isEmpty) {
+        return;
+      }
+
+      final first = newNotifications.first;
+      final moreCount = newNotifications.length - 1;
+      final extraText = moreCount > 0 ? ' (+$moreCount more)' : '';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+          content: Text('${first.message}$extraText'),
+          backgroundColor: first.type == 'approved'
+              ? const Color(0xFF1F8A4C)
+              : const Color(0xFFB33131),
+        ),
+      );
+    } catch (_) {
+      // Ignore transient fetch errors; polling will try again.
+    } finally {
+      _isCheckingNotifications = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
