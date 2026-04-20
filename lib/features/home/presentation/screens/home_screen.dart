@@ -828,15 +828,16 @@ class _ReservationCardWidget extends StatefulWidget {
 }
 
 class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
-  Future<int> _getApprovedCount(int reservationId) async {
+  Future<_ApprovalProgress> _getApprovalProgress(int reservationId) async {
     try {
       final reservationService = ReservationService();
       final officeService = OfficeService();
       final approvals = await reservationService.getReservationApprovals(reservationId);
+      final borrowedItems = await reservationService.getReservationItems(reservationId);
       final offices = await officeService.getAllOffices();
       final officeMap = {for (var office in offices) office.officeId: office};
 
-      const approvalStages = [
+      final approvalStages = [
         ['designated item owner', 'item owner', 'designated owner'],
         ['program chair', 'programchair', 'chair'],
         ['sdao'],
@@ -845,6 +846,10 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
         ['physical facilities', 'facilities', 'physical'],
       ];
 
+      final applicableStages = borrowedItems.isEmpty
+          ? approvalStages.skip(1).toList()
+          : approvalStages;
+
       final approvedStages = <int>{};
       for (final approval in approvals) {
         if (approval.status != 'approved') continue;
@@ -852,8 +857,8 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
         if (office == null) continue;
 
         final normalized = office.departmentName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
-        for (var i = 0; i < approvalStages.length; i++) {
-          final hasMatch = approvalStages[i].any((alias) {
+        for (var i = 0; i < applicableStages.length; i++) {
+          final hasMatch = applicableStages[i].any((alias) {
             final normalizedAlias = alias.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
             return normalized == normalizedAlias;
           });
@@ -863,9 +868,12 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
           }
         }
       }
-      return approvedStages.length;
+      return _ApprovalProgress(
+        completedCount: approvedStages.length,
+        totalCount: applicableStages.length,
+      );
     } catch (e) {
-      return 0;
+      return const _ApprovalProgress(completedCount: 0, totalCount: 0);
     }
   }
 
@@ -1018,11 +1026,11 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
           ),
           const SizedBox(height: 12),
           // Countdown timer - only show if all 5 approvals are complete
-          FutureBuilder<int>(
-            future: _getApprovedCount(widget.reservation.reservationId),
+          FutureBuilder<_ApprovalProgress>(
+            future: _getApprovalProgress(widget.reservation.reservationId),
             builder: (context, snapshot) {
-              final approvedCount = snapshot.data ?? 0;
-              if (approvedCount < 6 ||
+              final progress = snapshot.data ?? const _ApprovalProgress(completedCount: 0, totalCount: 0);
+              if (!progress.isComplete ||
                   widget.reservation.startOfActivity == null ||
                   widget.reservation.endOfActivity == null) {
                 return const SizedBox.shrink();
@@ -1072,6 +1080,18 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
         return const Color(0xFF696969);
     }
   }
+}
+
+class _ApprovalProgress {
+  final int completedCount;
+  final int totalCount;
+
+  const _ApprovalProgress({
+    required this.completedCount,
+    required this.totalCount,
+  });
+
+  bool get isComplete => totalCount > 0 && completedCount >= totalCount;
 }
 
 class _CountdownTimerWidget extends StatefulWidget {

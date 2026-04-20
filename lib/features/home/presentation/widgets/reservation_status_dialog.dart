@@ -17,6 +17,7 @@ const List<_ApprovalStageDefinition> _approvalStages = [
       'item owner',
       'designated owner',
     ],
+    requiresBorrowedItems: true,
   ),
   _ApprovalStageDefinition(
     displayName: 'Program chair',
@@ -40,14 +41,25 @@ const List<_ApprovalStageDefinition> _approvalStages = [
   ),
 ];
 
+List<_ApprovalStageDefinition> _buildApprovalStages({
+  required bool hasBorrowedItems,
+}) {
+  return _approvalStages
+      .where((stage) => !stage.requiresBorrowedItems || hasBorrowedItems)
+      .toList();
+}
+
 String _normalizeOfficeName(String value) {
   return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
 }
 
-int? _findStageIndex(String departmentName) {
+int? _findStageIndex(
+  String departmentName,
+  List<_ApprovalStageDefinition> stages,
+) {
   final normalized = _normalizeOfficeName(departmentName);
-  for (var i = 0; i < _approvalStages.length; i++) {
-    final hasMatch = _approvalStages[i].aliases
+  for (var i = 0; i < stages.length; i++) {
+    final hasMatch = stages[i].aliases
         .map(_normalizeOfficeName)
         .contains(normalized);
     if (hasMatch) {
@@ -60,10 +72,12 @@ int? _findStageIndex(String departmentName) {
 class _ApprovalStageDefinition {
   final String displayName;
   final List<String> aliases;
+  final bool requiresBorrowedItems;
 
   const _ApprovalStageDefinition({
     required this.displayName,
     required this.aliases,
+    this.requiresBorrowedItems = false,
   });
 }
 
@@ -846,10 +860,15 @@ class _ReservationTimelineState extends State<_ReservationTimeline> {
       final approvals =
           await reservationService.getReservationApprovals(widget.reservationId!);
       final offices = await officeService.getAllOffices();
+      final borrowedItems =
+          await reservationService.getReservationItems(widget.reservationId!);
+      final approvalStages = _buildApprovalStages(
+        hasBorrowedItems: borrowedItems.isNotEmpty,
+      );
 
       final officeMap = {for (var office in offices) office.officeId: office};
       final List<ReservationApproval?> approvalPerStage =
-          List<ReservationApproval?>.filled(_approvalStages.length, null);
+          List<ReservationApproval?>.filled(approvalStages.length, null);
 
       for (final approval in approvals) {
         final office = officeMap[approval.officeId];
@@ -857,7 +876,7 @@ class _ReservationTimelineState extends State<_ReservationTimeline> {
           continue;
         }
 
-        final stageIndex = _findStageIndex(office.departmentName);
+        final stageIndex = _findStageIndex(office.departmentName, approvalStages);
         if (stageIndex == null) {
           continue;
         }
@@ -884,8 +903,8 @@ class _ReservationTimelineState extends State<_ReservationTimeline> {
 
       final List<_TimelineStep> steps = [];
 
-      for (int i = 0; i < _approvalStages.length; i++) {
-        final stageName = _approvalStages[i].displayName;
+      for (int i = 0; i < approvalStages.length; i++) {
+        final stageName = approvalStages[i].displayName;
         final approval = approvalPerStage[i] ??
             ReservationApproval(
               approvalId: 0,
@@ -1144,6 +1163,11 @@ class _ProgressIndicatorState extends State<_ProgressIndicator> {
       final approvals =
           await reservationService.getReservationApprovals(widget.reservationId!);
       final offices = await officeService.getAllOffices();
+      final borrowedItems =
+          await reservationService.getReservationItems(widget.reservationId!);
+      final approvalStages = _buildApprovalStages(
+        hasBorrowedItems: borrowedItems.isNotEmpty,
+      );
       final officeMap = {for (var office in offices) office.officeId: office};
 
       final approvedStages = <int>{};
@@ -1157,7 +1181,7 @@ class _ProgressIndicatorState extends State<_ProgressIndicator> {
           continue;
         }
 
-        final stageIndex = _findStageIndex(office.departmentName);
+        final stageIndex = _findStageIndex(office.departmentName, approvalStages);
         if (stageIndex != null) {
           approvedStages.add(stageIndex);
         }
@@ -1175,23 +1199,35 @@ class _ProgressIndicatorState extends State<_ProgressIndicator> {
       future: _completedCountFuture,
       builder: (context, snapshot) {
         final completedCount = snapshot.data ?? 0;
-        final totalStages = _approvalStages.length;
+        return FutureBuilder<bool>(
+          future: widget.reservationId == null
+              ? Future.value(false)
+              : ReservationService()
+                  .getReservationItems(widget.reservationId!)
+                  .then((items) => items.isNotEmpty),
+          builder: (context, itemsSnapshot) {
+            final hasBorrowedItems = itemsSnapshot.data ?? false;
+            final totalStages = _buildApprovalStages(
+              hasBorrowedItems: hasBorrowedItems,
+            ).length;
 
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            totalStages,
-            (i) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Icon(
-                Icons.check_circle,
-                color: i < completedCount
-                    ? const Color(0xFFF5BC1D)
-                    : const Color(0xFFD0D0D0),
-                size: 28,
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                totalStages,
+                (i) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Icon(
+                    Icons.check_circle,
+                    color: i < completedCount
+                        ? const Color(0xFFF5BC1D)
+                        : const Color(0xFFD0D0D0),
+                    size: 28,
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
