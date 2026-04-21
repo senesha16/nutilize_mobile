@@ -23,11 +23,15 @@ class Item {
   });
 
   factory Item.fromJson(Map<String, dynamic> json) {
+    final categoryData = json['item_categories'] as Map<String, dynamic>?;
+    final displayName = categoryData?['display_name']?.toString();
+    final categoryKey = categoryData?['category_key']?.toString();
+
     return Item(
       itemId: json['item_id'] ?? 0,
       ownerId: json['owner_id'] ?? 0,
       itemName: json['item_name'] ?? '',
-      category: (json['category'] as String?) ?? 'Other',
+      category: displayName ?? (categoryKey ?? 'Uncategorized'),
       maintenanceStatus: json['maintenance_status'] ?? false,
       availabilityStatus: json['availability_status'] ?? true,
       dateReserved: json['date_reserved'] != null

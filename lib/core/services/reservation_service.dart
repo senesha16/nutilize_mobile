@@ -289,7 +289,7 @@ class ReservationService {
       final response = await _supabase
           .from('reservation_details')
           .select(
-              'quantity, reservation_items_id, reservation_items!inner(item_id, items!inner(item_id, item_name, category))')
+              'quantity, reservation_items_id, reservation_items!inner(item_id, items!inner(item_id, item_name, category_id, item_categories(category_id, category_key, display_name)))')
           .eq('reservation_id', reservationId)
           .not('reservation_items_id', 'is', null);
 
@@ -332,9 +332,12 @@ class BorrowedItem {
   factory BorrowedItem.fromJson(Map<String, dynamic> json) {
     final items = json['reservation_items'] as Map<String, dynamic>?;
     final item = items?['items'] as Map<String, dynamic>?;
+    final categoryData = item?['item_categories'] as Map<String, dynamic>?;
     return BorrowedItem(
       itemName: item?['item_name']?.toString() ?? 'Unknown',
-      category: item?['category']?.toString() ?? 'Unknown',
+      category: categoryData?['display_name']?.toString() ??
+          categoryData?['category_key']?.toString() ??
+          'Uncategorized',
       quantity: json['quantity'] as int? ?? 1,
     );
   }

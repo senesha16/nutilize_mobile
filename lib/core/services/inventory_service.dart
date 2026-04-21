@@ -43,7 +43,9 @@ class InventoryService {
     try {
       final response = await _supabase
           .from('items')
-          .select();
+          .select(
+            'item_id, owner_id, item_name, maintenance_status, availability_status, date_reserved, created_at, updated_at, category_id, item_categories(category_id, category_key, display_name)',
+          );
 
       return (response as List)
           .map((json) => Item.fromJson(json as Map<String, dynamic>))
@@ -58,7 +60,9 @@ class InventoryService {
     try {
       final response = await _supabase
           .from('items')
-          .select()
+          .select(
+            'item_id, owner_id, item_name, maintenance_status, availability_status, date_reserved, created_at, updated_at, category_id, item_categories(category_id, category_key, display_name)',
+          )
           .eq('item_id', itemId)
           .single();
 
@@ -73,8 +77,11 @@ class InventoryService {
     try {
       final response = await _supabase
           .from('items')
-          .select()
-          .eq('category', category);
+          .select(
+            'item_id, owner_id, item_name, maintenance_status, availability_status, date_reserved, created_at, updated_at, category_id, item_categories!inner(category_id, category_key, display_name)',
+          )
+          .or('category_key.eq.$category,display_name.eq.$category',
+              referencedTable: 'item_categories');
 
       return (response as List)
           .map((json) => Item.fromJson(json as Map<String, dynamic>))

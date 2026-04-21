@@ -604,9 +604,8 @@ class _PeripheralsFormFieldsState extends State<_PeripheralsFormFields> {
           itemsByCategory.putIfAbsent(item.category, () => []).add(item);
         }
 
-        for (var category in ['MultiMedia', 'Electronics', 'Utility']) {
-          itemsByCategory.putIfAbsent(category, () => []);
-        }
+        final sortedCategoryEntries = itemsByCategory.entries.toList()
+          ..sort((a, b) => a.key.toLowerCase().compareTo(b.key.toLowerCase()));
 
         for (var category in itemsByCategory.keys) {
           _categoryNoNeed.putIfAbsent(category, () => false);
@@ -634,7 +633,7 @@ class _PeripheralsFormFieldsState extends State<_PeripheralsFormFields> {
             ),
             const SizedBox(height: 18),
 
-            ...itemsByCategory.entries.map((entry) {
+            ...sortedCategoryEntries.map((entry) {
               final category = entry.key;
               final items = entry.value;
 
@@ -1983,9 +1982,8 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
           itemsByCategory.putIfAbsent(item.category, () => []).add(item);
         }
 
-        for (var category in ['MultiMedia', 'Electronics', 'Utility']) {
-          itemsByCategory.putIfAbsent(category, () => []);
-        }
+        final sortedCategoryEntries = itemsByCategory.entries.toList()
+          ..sort((a, b) => a.key.toLowerCase().compareTo(b.key.toLowerCase()));
 
         for (var category in itemsByCategory.keys) {
           _categoryNoNeed.putIfAbsent(category, () => false);
@@ -1993,7 +1991,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: itemsByCategory.entries.map((entry) {
+          children: sortedCategoryEntries.map((entry) {
             final category = entry.key;
             final items = entry.value;
 
