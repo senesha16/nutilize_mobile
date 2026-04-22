@@ -714,6 +714,7 @@ class _ReservationHighlightCardState extends State<_ReservationHighlightCard> {
   final _authService = AuthService();
   final _reservationService = ReservationService();
   late Future<List<Reservation>> _reservationsFuture;
+  bool _showAllReservations = false;
 
   @override
   void initState() {
@@ -795,12 +796,51 @@ class _ReservationHighlightCardState extends State<_ReservationHighlightCard> {
           );
         }
 
-        // Show reservations in a vertical list
+        final hasOverflow = activeReservations.length > 3;
+        final visibleReservations = _showAllReservations
+            ? activeReservations
+            : activeReservations.take(3).toList();
+
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ...activeReservations.map((reservation) {
+            Row(
+              children: [
+                Text(
+                  'Active Requests (${activeReservations.length})',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF233B7A),
+                  ),
+                ),
+                const Spacer(),
+                if (hasOverflow)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _showAllReservations = !_showAllReservations;
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF233B7A),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: const Size(10, 10),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      _showAllReservations
+                          ? 'Show less'
+                          : 'Show ${activeReservations.length - visibleReservations.length} more',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ...visibleReservations.map((reservation) {
               return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.only(bottom: 8),
                 child: _ReservationCardWidget(
                   reservation: reservation,
                   onRefresh: _loadReservations,
@@ -891,16 +931,15 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFE6E8F2),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(
             color: Color(0x22000000),
-            blurRadius: 8,
-            offset: Offset(0, 3),
+            blurRadius: 6,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -910,19 +949,19 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
           Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
                   color: AuthPalette.royalBlue,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                 ),
                 child: Icon(
                   getIconForActivity(widget.reservation.activityName),
                   color: Colors.white,
-                  size: 30,
+                  size: 24,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -930,7 +969,7 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
                     Text(
                       widget.reservation.activityName,
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: Colors.black,
                       ),
@@ -940,7 +979,7 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
                     Text(
                       _getStatusLabel(widget.reservation.overallStatus),
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         color: _getStatusColor(widget.reservation.overallStatus),
                         fontWeight: FontWeight.w600,
                       ),
@@ -950,13 +989,13 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: const [
                 BoxShadow(
                   color: Color(0x18000000),
@@ -971,10 +1010,12 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    _formatDate(widget.reservation.createdAt),
+                    _formatDate(
+                      widget.reservation.dateOfActivity ?? widget.reservation.createdAt,
+                    ),
                     style: const TextStyle(
                       color: Color(0xFF777777),
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -982,7 +1023,7 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -994,7 +1035,7 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
                     );
                   },
                   child: Container(
-                    height: 40,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: AuthPalette.royalBlue,
                       borderRadius: BorderRadius.circular(9),
@@ -1004,7 +1045,7 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
                       'View Details',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1013,14 +1054,14 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
               ),
               const SizedBox(width: 8),
               Container(
-                width: 36,
-                height: 36,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   color: const Color(0xFFD4D4D4),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 alignment: Alignment.center,
-                child: const Icon(Icons.edit_square, color: Color(0xFF8E8E8E)),
+                child: const Icon(Icons.edit_square, color: Color(0xFF8E8E8E), size: 18),
               ),
             ],
           ),
@@ -1212,8 +1253,6 @@ class NutilizeHeader extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Row(
                   children: [
-                    _HeaderIconButton(icon: Icons.search, onTap: () {}),
-                    const SizedBox(width: 10),
                     AnimatedBuilder(
                       animation: NotificationService.instance,
                       builder: (context, _) {

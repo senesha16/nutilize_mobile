@@ -303,15 +303,17 @@ class ReservationService {
 }
 
 class BorrowedRoom {
+  final int roomId;
   final String roomNumber;
   final String roomType;
 
-  BorrowedRoom({required this.roomNumber, required this.roomType});
+  BorrowedRoom({required this.roomId, required this.roomNumber, required this.roomType});
 
   factory BorrowedRoom.fromJson(Map<String, dynamic> json) {
     final rooms = json['reservation_rooms'] as Map<String, dynamic>?;
     final room = rooms?['rooms'] as Map<String, dynamic>?;
     return BorrowedRoom(
+      roomId: room?['room_id'] as int? ?? 0,
       roomNumber: room?['room_number']?.toString() ?? 'Unknown',
       roomType: room?['room_type']?.toString() ?? 'Unknown',
     );
@@ -319,11 +321,13 @@ class BorrowedRoom {
 }
 
 class BorrowedItem {
+  final int itemId;
   final String itemName;
   final String category;
   final int quantity;
 
   BorrowedItem({
+    required this.itemId,
     required this.itemName,
     required this.category,
     required this.quantity,
@@ -334,6 +338,7 @@ class BorrowedItem {
     final item = items?['items'] as Map<String, dynamic>?;
     final categoryData = item?['item_categories'] as Map<String, dynamic>?;
     return BorrowedItem(
+      itemId: item?['item_id'] as int? ?? 0,
       itemName: item?['item_name']?.toString() ?? 'Unknown',
       category: categoryData?['display_name']?.toString() ??
           categoryData?['category_key']?.toString() ??

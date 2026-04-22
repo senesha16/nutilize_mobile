@@ -6,6 +6,7 @@ import 'package:nutilize/core/widgets/notification_panel.dart';
 import 'package:nutilize/features/auth/data/auth_service.dart';
 import 'package:nutilize/features/auth/login/presentation/screens/login_screen.dart';
 import 'package:nutilize/features/auth/shared/presentation/widgets/auth_ui.dart';
+import 'package:nutilize/features/home/presentation/widgets/reservation_status_dialog.dart';
 // import 'package:nutilize/shared/components/nutilize_header.dart';
 import 'package:nutilize/shared/components/simple_header.dart';
 
@@ -226,17 +227,44 @@ class _AccountView extends StatelessWidget {
                       _NavTile(
                         icon: Icons.calendar_month_rounded,
                         label: 'My Reservation',
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const _ReservationListPage(
+                                title: 'My Reservation',
+                                filter: _ReservationFilter.activeApproved,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       _NavTile(
                         icon: Icons.assignment_rounded,
                         label: 'My Requests',
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const _ReservationListPage(
+                                title: 'My Requests',
+                                filter: _ReservationFilter.pendingOnly,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       _NavTile(
                         icon: Icons.history_rounded,
                         label: 'History',
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const _ReservationListPage(
+                                title: 'History',
+                                filter: _ReservationFilter.history,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 18),
                       _SettingsTile(),
@@ -857,6 +885,226 @@ class _BorrowingHistoryCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+enum _ReservationFilter { activeApproved, pendingOnly, history }
+
+class _ReservationListPage extends StatefulWidget {
+  final String title;
+  final _ReservationFilter filter;
+
+  const _ReservationListPage({
+    required this.title,
+    required this.filter,
+  });
+
+  @override
+  State<_ReservationListPage> createState() => _ReservationListPageState();
+}
+
+class _ReservationListPageState extends State<_ReservationListPage> {
+  final AuthService _authService = AuthService();
+  final ReservationService _reservationService = ReservationService();
+  late Future<List<dynamic>> _reservationsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _reservationsFuture = _loadReservations();
+  }
+
+  Future<List<dynamic>> _loadReservations() async {
+    final user = await _authService.getCurrentUser();
+    if (user == null) return [];
+    final reservations = await _reservationService.getUserReservations(user.userId);
+    return reservations.where(_matchesFilter).toList();
+  }
+
+  bool _matchesFilter(dynamic reservation) {
+    final now = DateTime.now();
+    final status = (reservation.overallStatus ?? '').toString().toLowerCase();
+    final endDate = reservation.endOfActivity;
+
+    switch (widget.filter) {
+      case _ReservationFilter.activeApproved:
+        if (status != 'approved') return false;
+        if (endDate != null && now.isAfter(endDate)) return false;
+        return true;
+      case _ReservationFilter.pendingOnly:
+        return status == 'pending' || status.isEmpty;
+      case _ReservationFilter.history:
+        if (status == 'rejected' || status == 'completed') return true;
+        if (endDate != null && now.isAfter(endDate)) return true;
+        return false;
+    }
+  }
+
+  String _formatDateTime(DateTime? date) {
+    if (date == null) return 'Not scheduled';
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    final year = date.year;
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$year-$month-$day $hour:$minute';
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'approved':
+        return const Color(0xFF1BC47D);
+      case 'pending':
+        return const Color(0xFFF1B60D);
+      case 'rejected':
+        return const Color(0xFFE74C3C);
+      case 'completed':
+        return const Color(0xFF5664AE);
+      default:
+        return const Color(0xFF8E8E8E);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF2F2F2),
+      appBar: AppBar(
+        title: Text(
+          widget.title,
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        backgroundColor: const Color(0xFF233B7A),
+        foregroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
+      ),
+      body: FutureBuilder<List<dynamic>>(
+        future: _reservationsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Failed to load reservations',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: const Color(0xFF666666),
+                ),
+              ),
+            );
+          }
+
+          final reservations = snapshot.data ?? [];
+          if (reservations.isEmpty) {
+            return Center(
+              child: Text(
+                'No records found',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: const Color(0xFF666666),
+                ),
+              ),
+            );
+          }
+
+          return ListView.separated(
+            padding: const EdgeInsets.all(14),
+            itemCount: reservations.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              final reservation = reservations[index];
+              final status = (reservation.overallStatus ?? 'unknown').toString().toLowerCase();
+
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6E8F2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            reservation.activityName,
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1A1A1A),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _statusColor(status).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            status[0].toUpperCase() + status.substring(1),
+                            style: GoogleFonts.poppins(
+                              color: _statusColor(status),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Activity date: ${_formatDateTime(reservation.dateOfActivity)}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: const Color(0xFF555555),
+                      ),
+                    ),
+                    Text(
+                      'Requested: ${_formatDateTime(reservation.createdAt)}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: const Color(0xFF555555),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF233B7A),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () {
+                          showReservationStatusDialog(
+                            context,
+                            reservationId: reservation.reservationId,
+                          );
+                        },
+                        child: const Text('View Status'),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

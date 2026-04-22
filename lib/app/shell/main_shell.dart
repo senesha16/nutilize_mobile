@@ -219,8 +219,6 @@ class _DesktopTopBar extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                const _TopIcon(icon: Icons.search_rounded),
-                const SizedBox(width: 14),
                 const _TopIcon(icon: Icons.chat_bubble),
                 const SizedBox(width: 14),
                 const _TopIcon(icon: Icons.notifications),

@@ -40,12 +40,6 @@ class NutilizeHeader extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: isCompactWidth ? 4 : 6),
                 child: Row(
                   children: [
-                    _HeaderIconButton(
-                      icon: Icons.search,
-                      onTap: () {},
-                      compact: isCompactWidth,
-                    ),
-                    SizedBox(width: isCompactWidth ? 8 : 10),
                     Stack(
                       children: [
                         _HeaderIconButton(
