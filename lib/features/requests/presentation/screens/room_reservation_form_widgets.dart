@@ -4,6 +4,7 @@ import 'package:nutilize/core/services/inventory_service.dart';
 import 'package:nutilize/core/services/reservation_service.dart';
 import 'package:nutilize/core/models/room.dart';
 import 'package:nutilize/core/models/item.dart';
+import 'package:nutilize/app/shell/main_shell.dart';
 import 'package:nutilize/features/auth/data/auth_service.dart';
 
 class _ReservationSummaryCard extends StatefulWidget {
@@ -135,7 +136,10 @@ class _RequestSubmittedFeedbackPageState
     super.initState();
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          MainShell.routeName,
+          (route) => false,
+        );
       }
     });
   }
