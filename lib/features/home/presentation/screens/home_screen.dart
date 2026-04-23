@@ -933,8 +933,9 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFE6E8F2),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE3E8F4)),
         boxShadow: const [
           BoxShadow(
             color: Color(0x22000000),
@@ -1231,14 +1232,20 @@ class NutilizeHeader extends StatelessWidget {
     return Column(
       children: [
         Container(
-          height: 56,
-          color: AuthPalette.royalBlue,
+          height: 60,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [AuthPalette.royalBlueDark, AuthPalette.royalBlue],
+            ),
+          ),
           child: Row(
             children: [
               Padding(
                 padding: const EdgeInsets.only(left: 14),
                 child: SizedBox(
-                  height: 36,
+                  height: 38,
                   child: Image.asset(
                     'assets/images/nutilize_logo.png',
                     fit: BoxFit.contain,
@@ -1293,7 +1300,7 @@ class NutilizeHeader extends StatelessWidget {
             ],
           ),
         ),
-        Container(height: 4, color: AuthPalette.yellow),
+        Container(height: 3, color: AuthPalette.yellow),
       ],
     );
   }
@@ -1307,15 +1314,16 @@ class _HeaderIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: const Color(0xFFEAF0FF),
       shape: const CircleBorder(),
+      elevation: 2,
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: SizedBox(
           width: 38,
           height: 38,
-          child: Icon(icon, color: AuthPalette.royalBlue, size: 22),
+          child: Icon(icon, color: AuthPalette.royalBlue, size: 21),
         ),
       ),
     );

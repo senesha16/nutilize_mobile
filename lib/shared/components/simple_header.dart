@@ -13,22 +13,35 @@ class SimpleHeader extends StatelessWidget {
     return Column(
       children: [
         Container(
-          height: isCompactWidth ? 52 : 56,
-          color: AuthPalette.royalBlue,
+          height: isCompactWidth ? 54 : 58,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [AuthPalette.royalBlueDark, AuthPalette.royalBlue],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x22000000),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
           alignment: Alignment.center,
           padding: EdgeInsets.symmetric(horizontal: isCompactWidth ? 16 : 20),
           child: Text(
             title,
             style: GoogleFonts.poppins(
               color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: isCompactWidth ? 18 : 22,
-              letterSpacing: isCompactWidth ? 1.0 : 1.2,
+              fontWeight: FontWeight.w800,
+              fontSize: isCompactWidth ? 18 : 21,
+              letterSpacing: isCompactWidth ? 1.1 : 1.25,
             ),
             textAlign: TextAlign.center,
           ),
         ),
-        Container(height: 4, color: AuthPalette.yellow),
+        Container(height: 3, color: AuthPalette.yellow),
       ],
     );
   }

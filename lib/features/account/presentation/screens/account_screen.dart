@@ -304,11 +304,12 @@ class _StatusCardV2 extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE8ECF7)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -355,8 +356,9 @@ class _NavTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6F7FB),
+        color: const Color(0xFFF8FAFF),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE6EBF7)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.03),

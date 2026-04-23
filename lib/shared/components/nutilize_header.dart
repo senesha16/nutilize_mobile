@@ -11,14 +11,20 @@ class NutilizeHeader extends StatelessWidget {
     return Column(
       children: [
         Container(
-          height: isCompactWidth ? 52 : 56,
-          color: AuthPalette.royalBlue,
+          height: isCompactWidth ? 54 : 60,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [AuthPalette.royalBlueDark, AuthPalette.royalBlue],
+            ),
+          ),
           child: Row(
             children: [
               Padding(
                 padding: EdgeInsets.only(left: isCompactWidth ? 12 : 14),
                 child: SizedBox(
-                  height: isCompactWidth ? 32 : 36,
+                  height: isCompactWidth ? 34 : 38,
                   child: Image.asset(
                     'assets/images/nutilize_logo.png',
                     fit: BoxFit.contain,
@@ -68,7 +74,7 @@ class NutilizeHeader extends StatelessWidget {
             ],
           ),
         ),
-        Container(height: 4, color: AuthPalette.yellow),
+        Container(height: 3, color: AuthPalette.yellow),
       ],
     );
   }
@@ -87,15 +93,20 @@ class _HeaderIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: const Color(0xFFEAF0FF),
       shape: const CircleBorder(),
+      elevation: 2,
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: SizedBox(
           width: compact ? 34 : 38,
           height: compact ? 34 : 38,
-          child: Icon(icon, color: AuthPalette.royalBlue, size: compact ? 20 : 22),
+          child: Icon(
+            icon,
+            color: AuthPalette.royalBlue,
+            size: compact ? 19 : 21,
+          ),
         ),
       ),
     );
