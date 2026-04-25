@@ -96,10 +96,7 @@ class _ReservationSummaryCardState extends State<_ReservationSummaryCard> {
                   Text('Quantity: ${widget.chairQuantityRange ?? 'Not selected'}'),
                   const SizedBox(height: 8),
                   const Text('Tables:', style: TextStyle(fontWeight: FontWeight.w600)),
-                  if (widget.tableType == null || widget.tableType == 'No need')
-                    const Text('No tables selected')
-                  else
-                    Text('${widget.tableType} - Quantity: ${widget.tableQuantity.isEmpty ? '0' : widget.tableQuantity}'),
+                  Text('Type: ${widget.tableType ?? 'Not selected'}'),
                   const SizedBox(height: 8),
                   const Text('Items:', style: TextStyle(fontWeight: FontWeight.w600)),
                   if (selectedItems.isEmpty)
@@ -109,9 +106,76 @@ class _ReservationSummaryCardState extends State<_ReservationSummaryCard> {
                 ],
               ),
             ),
-          ],
+            const SizedBox(height: 20),
+            // LABEL: TERMS AND CONDITIONS section at the bottom (client requirement)
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Policies and Guidelines on the Use of School Facilities',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Color(0xFF233B7A),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildTermsPoint('Fill up and submit the reservation form together with the layout of the venue (if applicable).'),
+                  _buildTermsPoint('The venue shall be used only for the purpose stated in the reservation form.'),
+                  _buildTermsPoint('All decorations must be arranged/setup in coordination with the Physical Facilities Management Office. Decorations should not be hung from or placed on ceilings, fire safety equipment or overhead lighting. At no time may any items be attached to or hung from sprinkler system piping.'),
+                  _buildTermsPoint('Posting of banners, temporary signage, decorations and other materials that can possibly damage the facilities are strictly prohibited.'),
+                  _buildTermsPoint('The organization/department must assume the responsibility of preparing the place. Removal of decorations, posters and any related items and cleaning the facility are likewise the responsibilities of the organization/department.'),
+                  _buildTermsPoint('The organization/department must see to it that the facility is not filled beyond its capacity.'),
+                  _buildTermsPoint('Bringing of alcoholic beverages and drugs are strictly prohibited.'),
+                  _buildTermsPoint('Persons under the influence of alcohol/drug are not allowed within the premises.'),
+                  _buildTermsPoint('The organization/department must peacefully vacate the facility after the reserved date and time.'),
+                  _buildTermsPoint('The organization must observe cleanliness and orderliness within and after the duration of the activity.'),
+                  _buildTermsPoint('Final coordination with the Physical Facilities Management Office three or four days before the scheduled activity is a must.'),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'I/We have read, understand and agree to abide by all the rules listed in the application form.',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: Color(0xFF233B7A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ],
         );
       },
+    );
+  }
+
+  // LABEL: Helper method to build bullet points for terms and conditions
+  Widget _buildTermsPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(right: 10, top: 4),
+            child: Text('•', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 12, height: 1.5),
+              textAlign: TextAlign.justify,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -233,6 +297,8 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
   
   final Set<int> _selectedRoomIds = {};
   final Set<int> _selectedItemIds = {};
+  // LABEL: Track quantity requested for each item (itemId -> quantity)
+  final Map<int, int> _itemQuantities = {};
   
   bool _isSubmitting = false;
   late int _currentStep;
@@ -304,10 +370,12 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
       }
 
       for (int itemId in _selectedItemIds) {
+        // LABEL: Use quantity specified by user, default to 1 if not set
+        final quantity = _itemQuantities[itemId] ?? 1;
         await _reservationService.addItemToReservation(
           reservationId: reservation.reservationId,
           itemId: itemId,
-          quantity: 1,
+          quantity: quantity,
         );
       }
 
@@ -438,6 +506,13 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                                     _selectedItemIds.addAll(items);
                                   });
                                 },
+                                // LABEL: Capture item quantities from child widget for submission
+                                onQuantitiesChanged: (quantities) {
+                                  setState(() {
+                                    _itemQuantities.clear();
+                                    _itemQuantities.addAll(quantities);
+                                  });
+                                },
                               )
                             : step == 3
                                 ? _RoomSuggestionsList(
@@ -543,10 +618,13 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
 class _PeripheralsFormFields extends StatefulWidget {
   final Set<int> selectedItemIds;
   final Function(Set<int>)? onItemsChanged;
+  // LABEL: Callback to notify parent when item quantities change
+  final Function(Map<int, int>)? onQuantitiesChanged;
 
   const _PeripheralsFormFields({
     required this.selectedItemIds,
     this.onItemsChanged,
+    this.onQuantitiesChanged,
   });
 
   @override
@@ -559,6 +637,8 @@ class _PeripheralsFormFieldsState extends State<_PeripheralsFormFields> {
 
   final Map<String, bool> _categoryNoNeed = {};
   late Set<int> _localSelectedIds;
+  // LABEL: Track the quantity requested for each item (itemId -> requested quantity)
+  final Map<int, int> _itemQuantities = {};
 
   @override
   void initState() {
@@ -580,6 +660,8 @@ class _PeripheralsFormFieldsState extends State<_PeripheralsFormFields> {
 
   void _notifyParent() {
     widget.onItemsChanged?.call(Set.from(_localSelectedIds));
+    // LABEL: Also notify parent about quantity changes for each selected item
+    widget.onQuantitiesChanged?.call(Map.from(_itemQuantities));
   }
 
   @override
@@ -720,43 +802,118 @@ class _PeripheralsFormFieldsState extends State<_PeripheralsFormFields> {
     );
   }
 
+  // LABEL: Build item checkbox with quantity info and custom request input
+  // Shows: available quantity in database, checkbox to select, input for how many user wants
   Widget _buildItemCheckbox(Item item, String category) {
     final isSelected = _localSelectedIds.contains(item.itemId);
+    final requestedQty = _itemQuantities[item.itemId] ?? 1; // Default to 1 if not set
+    final availableQty = item.availableQuantity;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Checkbox(
-          value: isSelected,
-          onChanged: (_) {
-            setState(() {
-              if (isSelected) {
-                _localSelectedIds.remove(item.itemId);
-              } else {
-                _localSelectedIds.add(item.itemId);
-                _categoryNoNeed[category] = false; // Disable "No need" when selecting an item
-              }
-            });
-            _notifyParent();
-          },
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-          activeColor: const Color(0xFF233B7A),
-        ),
-        GestureDetector(
-          onTap: () {
-            setState(() {
-              if (isSelected) {
-                _localSelectedIds.remove(item.itemId);
-              } else {
-                _localSelectedIds.add(item.itemId);
-                _categoryNoNeed[category] = false;
-              }
-            });
-            _notifyParent();
-          },
-          child: Text(item.itemName, style: const TextStyle(fontSize: 15)),
-        ),
-      ],
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+        borderRadius: BorderRadius.circular(8),
+        color: isSelected ? const Color(0xFFF5BC1D).withOpacity(0.1) : Colors.transparent,
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // LABEL: Checkbox to select this item
+              Checkbox(
+                value: isSelected,
+                onChanged: availableQty > 0
+                    ? (_) {
+                        setState(() {
+                          if (isSelected) {
+                            _localSelectedIds.remove(item.itemId);
+                            _itemQuantities.remove(item.itemId);
+                          } else {
+                            _localSelectedIds.add(item.itemId);
+                            // Initialize quantity to 1 when selected
+                            _itemQuantities[item.itemId] = 1;
+                            _categoryNoNeed[category] = false;
+                          }
+                        });
+                        _notifyParent();
+                      }
+                    : null,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                activeColor: const Color(0xFF233B7A),
+              ),
+              // LABEL: Item name and available quantity from database
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.itemName,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: availableQty > 0 ? Colors.black : Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Remaining: $availableQty / ${item.quantityTotal}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                    ),
+                    if (item.quantityReserved > 0)
+                      Text(
+                        'Reserved: ${item.quantityReserved}',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // LABEL: Quantity input field - only show when item is selected
+          if (isSelected)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  const Text('Request: ', style: TextStyle(fontSize: 12)),
+                  Expanded(
+                    child: TextFormField(
+                      key: ValueKey('${item.itemId}-${requestedQty}'),
+                      initialValue: requestedQty.toString(),
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) {
+                        final qty = int.tryParse(value) ?? 1;
+                        // Validate: don't allow more than remaining available
+                        if (qty > 0 && qty <= availableQty) {
+                          setState(() {
+                            _itemQuantities[item.itemId] = qty;
+                          });
+                          _notifyParent();
+                        }
+                      },
+                      decoration: InputDecoration(
+                        hintText: '1',
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
+                        errorText: requestedQty > availableQty
+                            ? 'Max: $availableQty'
+                            : null,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'of $availableQty',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -835,54 +992,36 @@ class _RoomSuggestionsListState extends State<_RoomSuggestionsList> {
             }
 
             final rooms = snapshot.data ?? [];
-            final minCapacity = _getMinCapacityFromAttendance(widget.selectedAttendance);
 
-            // Smart filtering with scoring system
+            // LABEL: Filter rooms BASED ON TABLE TYPE - Attendance check removed (no longer needed)
+            // Rooms are filtered primarily by the selected table type (arm chair, Trapezoidal, accounting table)
             List<MapEntry<Room, int>> roomScores = [];
             
             for (var room in rooms) {
-              // Filter 1: Room type must match
-              if (widget.selectedRoomType != null && room.roomType != widget.selectedRoomType) {
+              // CRITICAL FILTER 1: All rooms must be Classroom type
+              if (room.roomType != 'Classroom') {
                 continue;
               }
               
-              // Filter 2: Attendance capacity must be met
-              if (minCapacity > 0 && room.roomCapacity < minCapacity) {
-                continue;
-              }
-              
-              // Filter 3: Table type must match (if selected)
-              if (widget.tableType != null && widget.tableType != 'No need') {
+              // CRITICAL FILTER 2: Room table type MUST match user's selection
+              // This ensures we show rooms with the correct table setup
+              if (widget.tableType != null && widget.tableType!.isNotEmpty) {
                 if (room.roomTableType != widget.tableType) {
-                  continue; // Skip rooms that don't have the requested table type
+                  continue; // Skip - table type doesn't match
                 }
               }
               
-              // Scoring system for recommended rooms
+              // LABEL: Scoring system for room recommendations
               int score = 100; // Base score for passing required filters
               
-              // Score for chair quantity (optional)
-              if (widget.chairQuantityRange != null) {
-                final minChairs = int.parse(widget.chairQuantityRange!.split('-')[0]);
-                final roomChairs = room.roomChairQuantity ?? 0;
-                if (roomChairs >= minChairs) {
-                  score += 50; // Perfect score for meeting chair requirement
-                } else {
-                  score += 10; // Still show but lower score
-                }
+              // OPTIONAL: Bonus points if room has adequate chairs (45+ standard)
+              if (room.roomCapacity != null && room.roomCapacity! >= 45) {
+                score += 20; // Prefer rooms with minimum chair requirement met
               }
               
-              // Score for table quantity (if table type already filtered)
-              if (widget.tableType != null && widget.tableType != 'No need') {
-                if (widget.tableQuantity.isNotEmpty) {
-                  final requiredTables = int.tryParse(widget.tableQuantity) ?? 0;
-                  final roomTables = room.roomTableCount ?? 0;
-                  if (roomTables >= requiredTables) {
-                    score += 20; // Good score for meeting table quantity
-                  } else {
-                    score += 5; // Lower score if not enough tables
-                  }
-                }
+              // OPTIONAL: Bonus points if room has multiple tables
+              if (room.roomTableCount != null && room.roomTableCount! > 1) {
+                score += 10; // More tables means more flexibility
               }
               
               roomScores.add(MapEntry(room, score));
@@ -1043,20 +1182,19 @@ class _ReservationDetailsFormFields extends StatefulWidget {
 }
 
 class _ReservationDetailsFormFieldsState extends State<_ReservationDetailsFormFields> {
-  String? _roomType;
+  // LABEL: Room type is now hardcoded to Classroom only (removed Laboratory option)
+  String? _roomType = 'Classroom';
   String? _chairQuantityRange;
   String? _tableType;
-  late TextEditingController _tableQuantityController;
 
   @override
   void initState() {
     super.initState();
-    _tableQuantityController = TextEditingController();
+    // Classroom is the default and only option
   }
 
   @override
   void dispose() {
-    _tableQuantityController.dispose();
     super.dispose();
   }
 
@@ -1080,93 +1218,65 @@ class _ReservationDetailsFormFieldsState extends State<_ReservationDetailsFormFi
           ],
         ),
         const SizedBox(height: 18),
-        const Text('Select a room type *', style: TextStyle(fontWeight: FontWeight.w600)),
+        // LABEL: Room type is hardcoded to Classroom - no selection needed
+        const Text('Room Type *', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
-        Wrap(
-          spacing: 12,
-          runSpacing: 6,
-          children: [
-            _buildRadio('Classroom', _roomType, (val) {
-              setState(() => _roomType = val);
-              widget.onRoomTypeChanged?.call(val);
-            }),
-            _buildRadio('Laboratory', _roomType, (val) {
-              setState(() => _roomType = val);
-              widget.onRoomTypeChanged?.call(val);
-            }),
-          ],
-        ),
-        const SizedBox(height: 18),
-        const Text('Chair Quantity Range', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 12,
-          runSpacing: 6,
-          children: [
-            _buildRangeRadio('10-20', _chairQuantityRange, (val) {
-              setState(() => _chairQuantityRange = val);
-              widget.onChairQuantityChanged?.call(val);
-            }),
-            _buildRangeRadio('20-30', _chairQuantityRange, (val) {
-              setState(() => _chairQuantityRange = val);
-              widget.onChairQuantityChanged?.call(val);
-            }),
-            _buildRangeRadio('40-50', _chairQuantityRange, (val) {
-              setState(() => _chairQuantityRange = val);
-              widget.onChairQuantityChanged?.call(val);
-            }),
-            _buildRangeRadio('60-70', _chairQuantityRange, (val) {
-              setState(() => _chairQuantityRange = val);
-              widget.onChairQuantityChanged?.call(val);
-            }),
-          ],
-        ),
-        const SizedBox(height: 18),
-        const Text('Select Table Type', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 12,
-          runSpacing: 6,
-          children: [
-            _buildRadio('Rectangular_Table', _tableType, (val) {
-              setState(() => _tableType = val);
-              widget.onTableTypeChanged?.call(val);
-            }),
-            _buildRadio('Triangular_Table', _tableType, (val) {
-              setState(() => _tableType = val);
-              widget.onTableTypeChanged?.call(val);
-            }),
-            _buildRadio('Professor_table', _tableType, (val) {
-              setState(() => _tableType = val);
-              widget.onTableTypeChanged?.call(val);
-            }),
-            _buildRadio('No need', _tableType, (val) {
-              setState(() => _tableType = val);
-              widget.onTableTypeChanged?.call(val);
-            }),
-          ],
-        ),
-        const SizedBox(height: 18),
-        const Text('Table Quantity', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _tableQuantityController,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            hintText: 'Enter table quantity',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEDEDED),
+            borderRadius: BorderRadius.circular(8),
           ),
-          onChanged: (value) {
-            setState(() {});
-            widget.onTableQuantityChanged?.call(value);
-          },
+          child: const Text('Classroom', style: TextStyle(fontSize: 16, color: Colors.black)),
+        ),
+        const SizedBox(height: 18),
+        // LABEL: Base chair quantity is always 45. Users can add extra chairs if needed
+        const Text('Chair Quantity', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 12,
+          runSpacing: 6,
+          children: [
+            // Standard 45 chairs is the default minimum
+            _buildChairRadio('45 (Standard)', '45', _chairQuantityRange, (val) {
+              setState(() => _chairQuantityRange = val);
+              widget.onChairQuantityChanged?.call(val);
+            }),
+            // Users can select if they want extra chairs
+            _buildChairRadio('45 + Extra (custom)', 'custom', _chairQuantityRange, (val) {
+              setState(() => _chairQuantityRange = val);
+              widget.onChairQuantityChanged?.call(val);
+            }),
+          ],
+        ),
+        const SizedBox(height: 18),
+        // LABEL: Select table type - only 3 options: arm chair, Trapezoidal, accounting table
+        const Text('Select Table Type *', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 12,
+          runSpacing: 6,
+          children: [
+            _buildRadio('arm chair', _tableType, (val) {
+              setState(() => _tableType = val);
+              widget.onTableTypeChanged?.call(val);
+            }),
+            _buildRadio('Trapezoidal', _tableType, (val) {
+              setState(() => _tableType = val);
+              widget.onTableTypeChanged?.call(val);
+            }),
+            _buildRadio('accounting table', _tableType, (val) {
+              setState(() => _tableType = val);
+              widget.onTableTypeChanged?.call(val);
+            }),
+          ],
         ),
         const SizedBox(height: 24),
       ],
     );
   }
 
+  // LABEL: Checkbox radio button helper for standard options
   Widget _buildRadio(String label, String? groupValue, ValueChanged<String> onChanged) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -1182,20 +1292,18 @@ class _ReservationDetailsFormFieldsState extends State<_ReservationDetailsFormFi
     );
   }
 
-  Widget _buildRangeRadio(String label, String? groupValue, ValueChanged<String?> onChanged) {
+  // LABEL: Checkbox radio button helper for chair quantity options (45 base + extra)
+  Widget _buildChairRadio(String label, String value, String? groupValue, ValueChanged<String> onChanged) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Checkbox(
-          value: groupValue == label,
-          onChanged: (_) => onChanged(groupValue == label ? null : label),
+          value: groupValue == value,
+          onChanged: (_) => onChanged(value),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
           activeColor: const Color(0xFF233B7A),
         ),
-        GestureDetector(
-          onTap: () => onChanged(groupValue == label ? null : label),
-          child: Text(label, style: const TextStyle(fontSize: 15)),
-        ),
+        GestureDetector(onTap: () => onChanged(value), child: Text(label, style: const TextStyle(fontSize: 15))),
       ],
     );
   }
@@ -1362,24 +1470,6 @@ class _ReservationFormFieldsState extends State<_ReservationFormFields> {
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 16),
-        const Text('Expected Attendance:'),
-        const SizedBox(height: 6),
-        DropdownButtonFormField<String>(
-          value: _attendance,
-          items: _attendanceOptions.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-          onChanged: (val) {
-            setState(() => _attendance = val);
-            widget.onAttendanceChanged?.call(val ?? '');
-          },
-          decoration: InputDecoration(
-            hintText: 'Select Expected Attendees',
-            filled: true,
-            fillColor: const Color(0xFFEDEDED),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
         ),
         const SizedBox(height: 24),
       ],
@@ -2062,40 +2152,63 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                 ),
                 ...items.map((item) {
                   final isSelected = _selectedItemIds.contains(item.itemId);
+                  final availableQty = item.availableQuantity;
                   return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Checkbox(
                         value: isSelected,
-                        onChanged: (_) {
-                          setState(() {
-                            if (isSelected) {
-                              _selectedItemIds.remove(item.itemId);
-                            } else {
-                              _selectedItemIds.add(item.itemId);
-                              _categoryNoNeed[category] = false;
-                            }
-                          });
-                        },
+                        onChanged: availableQty > 0
+                            ? (_) {
+                                setState(() {
+                                  if (isSelected) {
+                                    _selectedItemIds.remove(item.itemId);
+                                  } else {
+                                    _selectedItemIds.add(item.itemId);
+                                    _categoryNoNeed[category] = false;
+                                  }
+                                });
+                              }
+                            : null,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(4),
                         ),
                         activeColor: const Color(0xFF233B7A),
                       ),
                       GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            if (isSelected) {
-                              _selectedItemIds.remove(item.itemId);
-                            } else {
-                              _selectedItemIds.add(item.itemId);
-                              _categoryNoNeed[category] = false;
-                            }
-                          });
-                        },
-                        child: Text(item.itemName,
-                            style: const TextStyle(fontSize: 15)),
+                        onTap: availableQty > 0
+                            ? () {
+                                setState(() {
+                                  if (isSelected) {
+                                    _selectedItemIds.remove(item.itemId);
+                                  } else {
+                                    _selectedItemIds.add(item.itemId);
+                                    _categoryNoNeed[category] = false;
+                                  }
+                                });
+                              }
+                            : null,
+                        child: Text(
+                          item.itemName,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: availableQty > 0 ? Colors.black : Colors.grey[600],
+                          ),
+                        ),
                       ),
+                      const SizedBox(width: 8),
+                      if (availableQty == 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5BC1D).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Unavailable',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ),
                     ],
                   );
                 }).toList(),
