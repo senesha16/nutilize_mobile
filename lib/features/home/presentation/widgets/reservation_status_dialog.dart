@@ -123,11 +123,11 @@ class NUtilizeLogo extends StatelessWidget {
   }
 }
 
-Future<void> showReservationStatusDialog(
+Future<bool?> showReservationStatusDialog(
   BuildContext context, {
   int? reservationId,
 }) async {
-  await showModalBottomSheet(
+  return await showModalBottomSheet<bool?>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -162,6 +162,16 @@ class _ReservationStatusDialogContentState
     extends State<_ReservationStatusDialogContent> {
   File? _selectedImage;
   final TextEditingController _descController = TextEditingController();
+  late Future<Reservation?> _reservationFuture;
+  bool _isCancelling = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _reservationFuture = widget.reservationId != null
+        ? ReservationService().getReservation(widget.reservationId!)
+        : Future.value(null);
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
@@ -299,9 +309,7 @@ class _ReservationStatusDialogContentState
                   ),
                   // Countdown Timer Section
                   FutureBuilder<Reservation?>(
-                    future: widget.reservationId != null
-                        ? ReservationService().getReservation(widget.reservationId!)
-                        : Future.value(null),
+                    future: _reservationFuture,
                     builder: (context, snapshot) {
                       final reservation = snapshot.data;
                       if (reservation == null ||
@@ -322,56 +330,109 @@ class _ReservationStatusDialogContentState
                     reservationId: widget.reservationId,
                   ),
                   // Buttons
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF233B7A),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => ReportIssuePage(
-                                    reservationId: widget.reservationId,
+                  FutureBuilder<Reservation?>(
+                    future: _reservationFuture,
+                    builder: (context, snapshot) {
+                      final reservation = snapshot.data;
+                      final status = reservation?.overallStatus?.toLowerCase() ?? '';
+                      final canCancel = status == 'pending' || status == 'approved';
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            if (canCancel)
+                              Expanded(
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.redAccent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                  ),
+                                  onPressed: _isCancelling || reservation == null
+                                      ? null
+                                      : () async {
+                                          setState(() => _isCancelling = true);
+                                          try {
+                                            await ReservationService()
+                                                .cancelReservation(widget.reservationId!);
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content:
+                                                      Text('Reservation cancelled successfully'),
+                                                ),
+                                              );
+                                              Navigator.of(context).pop(true);
+                                            }
+                                          } catch (e) {
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Failed to cancel reservation: $e'),
+                                                ),
+                                              );
+                                              setState(() => _isCancelling = false);
+                                            }
+                                          }
+                                        },
+                                  child: Text(
+                                    _isCancelling ? 'Cancelling...' : 'Cancel Request',
+                                    style: const TextStyle(fontWeight: FontWeight.w600),
                                   ),
                                 ),
-                              );
-                            },
-                            child: const Text(
-                              'Issue report',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF233B7A),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
                               ),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            if (canCancel) const SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF233B7A),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                ),
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => ReportIssuePage(
+                                        reservationId: widget.reservationId,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: const Text(
+                                  'Issue report',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
                             ),
-                            onPressed: () {},
-                            child: const Text(
-                              'Print',
-                              style: TextStyle(fontWeight: FontWeight.w600),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF233B7A),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                ),
+                                onPressed: () {},
+                                child: const Text(
+                                  'Print',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                 ],
               ),

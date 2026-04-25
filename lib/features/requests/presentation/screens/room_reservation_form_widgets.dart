@@ -1557,6 +1557,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
   
   late Future<List<Item>> _itemsFuture;
   final Set<int> _selectedItemIds = {};
+  final Map<int, int> _itemQuantities = {};
   String _activityName = '';
   DateTime? _selectedDate;
   TimeOfDay? _fromTime;
@@ -1689,7 +1690,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
         await _reservationService.addItemToReservation(
           reservationId: reservation.reservationId,
           itemId: itemId,
-          quantity: 1,
+          quantity: _itemQuantities[itemId] ?? 1,
         );
       }
 
@@ -2124,6 +2125,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                           if (isNoNeed) {
                             for (var item in items) {
                               _selectedItemIds.remove(item.itemId);
+                              _itemQuantities.remove(item.itemId);
                             }
                           }
                         });
@@ -2141,6 +2143,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                           if (isNoNeed) {
                             for (var item in items) {
                               _selectedItemIds.remove(item.itemId);
+                              _itemQuantities.remove(item.itemId);
                             }
                           }
                         });
@@ -2152,64 +2155,108 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                 ),
                 ...items.map((item) {
                   final isSelected = _selectedItemIds.contains(item.itemId);
+                  final requestedQty = _itemQuantities[item.itemId] ?? 1;
                   final availableQty = item.availableQuantity;
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Checkbox(
-                        value: isSelected,
-                        onChanged: availableQty > 0
-                            ? (_) {
-                                setState(() {
-                                  if (isSelected) {
-                                    _selectedItemIds.remove(item.itemId);
-                                  } else {
-                                    _selectedItemIds.add(item.itemId);
-                                    _categoryNoNeed[category] = false;
-                                  }
-                                });
-                              }
-                            : null,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(8),
+                      color: isSelected ? const Color(0xFFF5BC1D).withOpacity(0.1) : Colors.transparent,
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: isSelected,
+                              onChanged: availableQty > 0
+                                  ? (_) {
+                                      setState(() {
+                                        if (isSelected) {
+                                          _selectedItemIds.remove(item.itemId);
+                                          _itemQuantities.remove(item.itemId);
+                                        } else {
+                                          _selectedItemIds.add(item.itemId);
+                                          _itemQuantities[item.itemId] = 1;
+                                          _categoryNoNeed[category] = false;
+                                        }
+                                      });
+                                    }
+                                  : null,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              activeColor: const Color(0xFF233B7A),
+                            ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.itemName,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                      color: availableQty > 0 ? Colors.black : Colors.grey[600],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Remaining: $availableQty / ${item.quantityTotal}',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                  ),
+                                  if (item.quantityReserved > 0)
+                                    Text(
+                                      'Reserved: ${item.quantityReserved}',
+                                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        activeColor: const Color(0xFF233B7A),
-                      ),
-                      GestureDetector(
-                        onTap: availableQty > 0
-                            ? () {
-                                setState(() {
-                                  if (isSelected) {
-                                    _selectedItemIds.remove(item.itemId);
-                                  } else {
-                                    _selectedItemIds.add(item.itemId);
-                                    _categoryNoNeed[category] = false;
-                                  }
-                                });
-                              }
-                            : null,
-                        child: Text(
-                          item.itemName,
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: availableQty > 0 ? Colors.black : Colors.grey[600],
+                        if (isSelected)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Row(
+                              children: [
+                                const Text('Request: ', style: TextStyle(fontSize: 12)),
+                                Expanded(
+                                  child: TextFormField(
+                                    key: ValueKey('${item.itemId}-${requestedQty}'),
+                                    initialValue: requestedQty.toString(),
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (value) {
+                                      final qty = int.tryParse(value) ?? 1;
+                                      if (qty > 0 && qty <= availableQty) {
+                                        setState(() {
+                                          _itemQuantities[item.itemId] = qty;
+                                        });
+                                      }
+                                    },
+                                    decoration: InputDecoration(
+                                      hintText: '1',
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
+                                      errorText: requestedQty > availableQty
+                                          ? 'Max: $availableQty'
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'of $availableQty',
+                                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (availableQty == 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF5BC1D).withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'Unavailable',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                        ),
-                    ],
+                      ],
+                    ),
                   );
                 }).toList(),
                 const SizedBox(height: 18),
@@ -2283,7 +2330,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: selectedItems
-                            .map((item) => Text('• ${item.itemName}'))
+                            .map((item) => Text('• ${item.itemName} (x${_itemQuantities[item.itemId] ?? 1})'))
                             .toList(),
                       );
                     }

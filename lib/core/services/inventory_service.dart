@@ -6,9 +6,11 @@ import 'package:nutilize/core/models/item.dart';
 class InventoryService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// Get all available rooms
+  /// Get all available rooms that are not currently reserved by active requests.
   Future<List<Room>> getAvailableRooms() async {
     try {
+      final reservedRoomIds = await _getReservedRoomIds();
+
       final response = await _supabase
           .from('rooms')
           .select()
@@ -17,9 +19,40 @@ class InventoryService {
 
       return (response as List)
           .map((json) => Room.fromJson(json as Map<String, dynamic>))
+          .where((room) => !reservedRoomIds.contains(room.roomId))
           .toList();
     } catch (e) {
       throw Exception('Failed to fetch rooms: $e');
+    }
+  }
+
+  Future<Set<int>> _getReservedRoomIds() async {
+    try {
+      final response = await _supabase
+          .from('reservation_details')
+          .select('reservation_rooms!inner(room_id), reservations!inner(overall_status)')
+          .not('reservation_rooms_id', 'is', null);
+
+      final reservedRoomIds = <int>{};
+      for (final raw in response as List) {
+        final detail = raw as Map<String, dynamic>;
+        final reservation = detail['reservations'] as Map<String, dynamic>?;
+        final status = reservation?['overall_status']?.toString().toLowerCase();
+
+        if (status == null || status == 'rejected' || status == 'completed' || status == 'cancelled') {
+          continue;
+        }
+
+        final roomInfo = detail['reservation_rooms'] as Map<String, dynamic>?;
+        final roomId = roomInfo?['room_id'] as int?;
+        if (roomId != null) {
+          reservedRoomIds.add(roomId);
+        }
+      }
+
+      return reservedRoomIds;
+    } catch (e) {
+      throw Exception('Failed to fetch reserved room ids: $e');
     }
   }
 
@@ -70,7 +103,7 @@ class InventoryService {
         final detail = raw as Map<String, dynamic>;
         final reservation = detail['reservations'] as Map<String, dynamic>?;
         final status = reservation?['overall_status']?.toString().toLowerCase();
-        if (status == null || status == 'rejected' || status == 'completed') {
+        if (status == null || status == 'rejected' || status == 'completed' || status == 'cancelled') {
           continue;
         }
 

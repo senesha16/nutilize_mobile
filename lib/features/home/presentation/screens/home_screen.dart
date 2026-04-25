@@ -769,8 +769,12 @@ class _ReservationHighlightCardState extends State<_ReservationHighlightCard> {
 
         final reservations = snapshot.data ?? [];
 
-        // Filter out completed/expired events
+        // Filter out cancelled / rejected / completed requests and expired events
         final activeReservations = reservations.where((r) {
+          final status = (r.overallStatus ?? '').toLowerCase();
+          if (status == 'rejected' || status == 'cancelled' || status == 'completed') {
+            return false;
+          }
           if (r.endOfActivity != null) {
             if (DateTime.now().isAfter(r.endOfActivity!)) {
               return false;
@@ -1029,11 +1033,14 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: () {
-                    showReservationStatusDialog(
+                  onTap: () async {
+                    final didCancel = await showReservationStatusDialog(
                       context,
                       reservationId: widget.reservation.reservationId,
                     );
+                    if (didCancel == true) {
+                      widget.onRefresh();
+                    }
                   },
                   child: Container(
                     height: 36,

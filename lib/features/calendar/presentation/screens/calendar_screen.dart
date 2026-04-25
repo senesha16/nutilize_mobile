@@ -203,9 +203,9 @@ class _IphoneStyleCalendarState extends State<_IphoneStyleCalendar> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.of(dialogContext).pop();
-                      showReservationStatusDialog(
+                      await showReservationStatusDialog(
                         context,
                         reservationId: event.reservationId,
                       );

@@ -42,7 +42,11 @@ class _AccountScreenState extends State<AccountScreen> {
       int approved = 0;
 
       for (var reservation in reservations) {
-        // Get approvals for each reservation
+        final status = (reservation.overallStatus ?? '').toLowerCase();
+        if (status == 'cancelled' || status == 'rejected' || status == 'completed') {
+          continue;
+        }
+
         final approvals = await _reservationService.getReservationApprovals(
           reservation.reservationId,
         );
@@ -938,7 +942,7 @@ class _ReservationListPageState extends State<_ReservationListPage> {
       case _ReservationFilter.pendingOnly:
         return status == 'pending' || status.isEmpty;
       case _ReservationFilter.history:
-        if (status == 'rejected' || status == 'completed') return true;
+        if (status == 'rejected' || status == 'completed' || status == 'cancelled') return true;
         if (endDate != null && now.isAfter(endDate)) return true;
         return false;
     }
@@ -964,6 +968,8 @@ class _ReservationListPageState extends State<_ReservationListPage> {
         return const Color(0xFFE74C3C);
       case 'completed':
         return const Color(0xFF5664AE);
+      case 'cancelled':
+        return const Color(0xFF8E8E8E);
       default:
         return const Color(0xFF8E8E8E);
     }
@@ -1092,11 +1098,16 @@ class _ReservationListPageState extends State<_ReservationListPage> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        onPressed: () {
-                          showReservationStatusDialog(
+                        onPressed: () async {
+                          final didCancel = await showReservationStatusDialog(
                             context,
                             reservationId: reservation.reservationId,
                           );
+                          if (didCancel == true && mounted) {
+                            setState(() {
+                              _reservationsFuture = _loadReservations();
+                            });
+                          }
                         },
                         child: const Text('View Status'),
                       ),

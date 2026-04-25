@@ -117,6 +117,11 @@ class ReservationService {
     }
   }
 
+  /// Cancel a reservation by setting its status to cancelled
+  Future<Reservation> cancelReservation(int reservationId) async {
+    return await updateReservationStatus(reservationId, 'cancelled');
+  }
+
   /// Add rooms to a reservation
   /// This creates entries in reservation_rooms and reservation_details tables
   Future<void> addRoomToReservation({
