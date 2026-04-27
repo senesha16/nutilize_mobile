@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nutilize/core/widgets/notification_panel.dart';
 import 'package:nutilize/features/auth/shared/presentation/widgets/auth_ui.dart';
 import 'room_reservation_form_widgets.dart';
+import 'bigger_spaces_form_widgets.dart';
 import 'package:nutilize/shared/components/nutilize_header.dart';
 import 'package:nutilize/shared/components/simple_header.dart';
 
@@ -56,11 +57,18 @@ class RequestsScreen extends StatelessWidget {
                     },
                   ),
                   const SizedBox(height: 14),
-                  const _RequestTypeCard(
+                  _RequestTypeCard(
                     icon: Icons.fitness_center_rounded,
-                    titleTop: 'GYM & AVR',
-                    titleBottom: 'Reservation',
+                    titleTop: 'Bigger Spaces',
+                    titleBottom: 'Within NU',
                     subtitle: 'Borrow bigger spaces',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const BiggerSpacesReservationFormPage(),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -150,9 +158,17 @@ class _RequestsDesktopPage extends StatelessWidget {
                       Expanded(
                         child: _RequestTypeCard(
                           icon: Icons.fitness_center_rounded,
-                          titleTop: 'GYM & AVR',
-                          titleBottom: 'Reservation',
+                          titleTop: 'Bigger Spaces',
+                          titleBottom: 'Within NU',
                           subtitle: 'Borrow bigger spaces',
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const BiggerSpacesReservationFormPage(),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
