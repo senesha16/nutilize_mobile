@@ -1,11 +1,36 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nutilize/core/services/inventory_service.dart';
 import 'package:nutilize/core/services/reservation_service.dart';
 import 'package:nutilize/core/models/room.dart';
 import 'package:nutilize/core/models/item.dart';
 import 'package:nutilize/app/shell/main_shell.dart';
 import 'package:nutilize/features/auth/data/auth_service.dart';
+
+class _MaxValueTextInputFormatter extends TextInputFormatter {
+  final int maxValue;
+
+  _MaxValueTextInputFormatter(this.maxValue);
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+
+    final value = int.tryParse(newValue.text);
+    if (value == null) {
+      return oldValue;
+    }
+
+    if (value > maxValue) {
+      return oldValue;
+    }
+
+    return newValue;
+  }
+}
 
 class _ReservationSummaryCard extends StatefulWidget {
   final Set<int> selectedRoomIds;
@@ -309,6 +334,7 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
   int? _customChairExtraCount;
   String? _tableType;
   String _tableQuantity = '';
+  bool _noNeedItemsSelected = false;
   String _userFirstName = 'User'; // Default fallback
   
   // Date and time fields
@@ -357,7 +383,7 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
       return _selectedRoomIds.isNotEmpty;
     }
     if (_currentStep == 4) {
-      return _selectedItemIds.isNotEmpty;
+      return _selectedItemIds.isNotEmpty || _noNeedItemsSelected;
     }
     return false;
   }
@@ -570,6 +596,7 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                                   setState(() {
                                     _selectedItemIds.clear();
                                     _selectedItemIds.addAll(items);
+                                    _noNeedItemsSelected = false;
                                   });
                                 },
                                 // LABEL: Capture item quantities from child widget for submission
@@ -577,6 +604,14 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                                   setState(() {
                                     _itemQuantities.clear();
                                     _itemQuantities.addAll(quantities);
+                                  });
+                                },
+                                onNoNeedChanged: (hasNoNeed) {
+                                  setState(() {
+                                    _noNeedItemsSelected = hasNoNeed;
+                                    if (hasNoNeed) {
+                                      _selectedItemIds.clear();
+                                    }
                                   });
                                 },
                               )
@@ -703,13 +738,14 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
 class _PeripheralsFormFields extends StatefulWidget {
   final Set<int> selectedItemIds;
   final Function(Set<int>)? onItemsChanged;
-  // LABEL: Callback to notify parent when item quantities change
   final Function(Map<int, int>)? onQuantitiesChanged;
+  final Function(bool)? onNoNeedChanged;
 
   const _PeripheralsFormFields({
     required this.selectedItemIds,
     this.onItemsChanged,
     this.onQuantitiesChanged,
+    this.onNoNeedChanged,
   });
 
   @override
@@ -747,6 +783,7 @@ class _PeripheralsFormFieldsState extends State<_PeripheralsFormFields> {
     widget.onItemsChanged?.call(Set.from(_localSelectedIds));
     // LABEL: Also notify parent about quantity changes for each selected item
     widget.onQuantitiesChanged?.call(Map.from(_itemQuantities));
+    widget.onNoNeedChanged?.call(_categoryNoNeed.values.any((v) => v));
   }
 
   @override
@@ -968,12 +1005,20 @@ class _PeripheralsFormFieldsState extends State<_PeripheralsFormFields> {
                       key: ValueKey('${item.itemId}-${requestedQty}'),
                       initialValue: requestedQty.toString(),
                       keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        _MaxValueTextInputFormatter(availableQty),
+                      ],
                       onChanged: (value) {
-                        final qty = int.tryParse(value) ?? 1;
-                        // Validate: don't allow more than remaining available
+                        final qty = int.tryParse(value) ?? 0;
                         if (qty > 0 && qty <= availableQty) {
                           setState(() {
                             _itemQuantities[item.itemId] = qty;
+                          });
+                          _notifyParent();
+                        } else if (value.isEmpty) {
+                          setState(() {
+                            _itemQuantities.remove(item.itemId);
                           });
                           _notifyParent();
                         }
@@ -2305,6 +2350,10 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                                     key: ValueKey('${item.itemId}-${requestedQty}'),
                                     initialValue: requestedQty.toString(),
                                     keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                      _MaxValueTextInputFormatter(availableQty),
+                                    ],
                                     onChanged: (value) {
                                       final qty = int.tryParse(value) ?? 1;
                                       if (qty > 0 && qty <= availableQty) {
