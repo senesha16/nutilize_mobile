@@ -357,6 +357,32 @@ class _ReservationStatusDialogContentState
                                   onPressed: _isCancelling || reservation == null
                                       ? null
                                       : () async {
+                                          // Show confirmation dialog
+                                          final confirmed = await showDialog<bool>(
+                                            context: context,
+                                            builder: (context) => AlertDialog(
+                                              title: const Text('Are you sure you want to cancel?'),
+                                              content: const Text(
+                                                'This action cannot be undone. Your reservation will be cancelled.',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.of(context).pop(false),
+                                                  child: const Text('No, keep it'),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () => Navigator.of(context).pop(true),
+                                                  child: const Text(
+                                                    'Yes, cancel',
+                                                    style: TextStyle(color: Colors.red),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+
+                                          if (confirmed != true) return;
+
                                           setState(() => _isCancelling = true);
                                           try {
                                             await ReservationService()

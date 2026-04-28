@@ -1,10 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nutilize/core/services/inventory_service.dart';
 import 'package:nutilize/core/services/reservation_service.dart';
 import 'package:nutilize/core/models/room.dart';
 import 'package:nutilize/core/models/item.dart';
 import 'package:nutilize/app/shell/main_shell.dart';
 import 'package:nutilize/features/auth/data/auth_service.dart';
+
+class _MaxValueTextInputFormatter extends TextInputFormatter {
+  final int maxValue;
+
+  _MaxValueTextInputFormatter(this.maxValue);
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+
+    final value = int.tryParse(newValue.text);
+    if (value == null) {
+      return oldValue;
+    }
+
+    if (value > maxValue) {
+      return oldValue;
+    }
+
+    return newValue;
+  }
+}
 
 class BiggerSpacesReservationFormPage extends StatefulWidget {
   const BiggerSpacesReservationFormPage({super.key});
@@ -727,6 +752,10 @@ class _BiggerSpacesReservationFormPageState
                                           ),
                                           initialValue: requestedQty.toString(),
                                           keyboardType: TextInputType.number,
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter.digitsOnly,
+                                            _MaxValueTextInputFormatter(availableQty),
+                                          ],
                                           onChanged: (value) {
                                             final qty =
                                                 int.tryParse(value) ?? 1;
