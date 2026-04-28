@@ -41,6 +41,7 @@ class _BiggerSpacesReservationFormPageState
   int _currentStep =
       1; // Step 1: Activity details & space, Step 2: Items, Step 3: Confirmation
   bool _isSubmitting = false;
+  String _userFirstName = 'User'; // Default fallback
 
   @override
   void initState() {
@@ -51,6 +52,20 @@ class _BiggerSpacesReservationFormPageState
           .toList();
     });
     _itemsFuture = _inventoryService.getAvailableItems();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    try {
+      final currentUser = await _authService.getCurrentUser();
+      if (currentUser != null && mounted) {
+        setState(() {
+          _userFirstName = currentUser.firstName;
+        });
+      }
+    } catch (e) {
+      // Keep default name if loading fails
+    }
   }
 
   Future<void> _pickDate() async {
@@ -222,6 +237,15 @@ class _BiggerSpacesReservationFormPageState
               ),
               child: Row(
                 children: [
+                  if (step > 1)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      onPressed: () => setState(() => _currentStep--),
+                    ),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(
@@ -252,9 +276,9 @@ class _BiggerSpacesReservationFormPageState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  children: const [
+                                  children: [
                                     Text(
-                                      'Hello, Kirk  👋',
+                                      'Hello, $_userFirstName  👋',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w700,
@@ -330,27 +354,6 @@ class _BiggerSpacesReservationFormPageState
                         ),
                         child: Row(
                           children: [
-                            if (step > 1)
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () =>
-                                      setState(() => _currentStep--),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: const Color(0xFF233B7A),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Back',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            if (step > 1) const SizedBox(width: 12),
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: _isSubmitting

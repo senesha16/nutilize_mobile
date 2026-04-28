@@ -302,12 +302,14 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
   
   bool _isSubmitting = false;
   late int _currentStep;
-  String? _selectedRoomType;
+  String? _selectedRoomType = 'Classroom';
   String? _selectedAttendance;
   String _activityName = '';
   String? _chairQuantityRange;
+  int? _customChairExtraCount;
   String? _tableType;
   String _tableQuantity = '';
+  String _userFirstName = 'User'; // Default fallback
   
   // Date and time fields
   DateTime? _eventDate;
@@ -320,6 +322,63 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
     _currentStep = widget.step;
     _roomsFuture = _inventoryService.getAvailableRooms();
     _itemsFuture = _inventoryService.getAvailableItems();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    try {
+      final authService = AuthService();
+      final currentUser = await authService.getCurrentUser();
+      if (currentUser != null && mounted) {
+        setState(() {
+          _userFirstName = currentUser.firstName;
+        });
+      }
+    } catch (e) {
+      // Keep default name if loading fails
+    }
+  }
+
+  bool get _canProceedToNext {
+    if (_currentStep == 1) {
+      return _activityName.isNotEmpty && _eventDate != null && _eventStartTime != null && _eventEndTime != null;
+    }
+
+    if (_currentStep == 2) {
+      final bool chairSelectionValid = _chairQuantityRange != null && _chairQuantityRange!.isNotEmpty &&
+          (_chairQuantityRange != 'custom' ||
+              (_customChairExtraCount != null && _customChairExtraCount! > 0 && _customChairExtraCount! <= 50));
+
+      return _chairQuantityRange != null && _selectedRoomType != null && _selectedRoomType!.isNotEmpty &&
+          chairSelectionValid &&
+          _tableType != null && _tableType!.isNotEmpty;
+    }
+    if (_currentStep == 3) {
+      return _selectedRoomIds.isNotEmpty;
+    }
+    if (_currentStep == 4) {
+      return _selectedItemIds.isNotEmpty;
+    }
+    return false;
+  }
+
+  void _goToNextStep() {
+    if (_currentStep < 5) {
+      setState(() => _currentStep++);
+    }
+  }
+
+  String get _chairQuantityDisplay {
+    if (_chairQuantityRange == null || _chairQuantityRange!.isEmpty) {
+      return '';
+    }
+    if (_chairQuantityRange == '45') {
+      return '45';
+    }
+    if (_chairQuantityRange == 'custom' && _customChairExtraCount != null) {
+      return '45 + $_customChairExtraCount (total ${45 + _customChairExtraCount!})';
+    }
+    return _chairQuantityRange!;
   }
 
   Future<void> _submitReservation() async {
@@ -418,6 +477,11 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
               ),
               child: Row(
                 children: [
+                  if (step > 1)
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 28),
+                      onPressed: () => setState(() => _currentStep--),
+                    ),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white, size: 32),
@@ -437,7 +501,7 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                           ? _ReservationSummaryCard(
                               selectedRoomIds: _selectedRoomIds,
                               selectedItemIds: _selectedItemIds,
-                              chairQuantityRange: _chairQuantityRange,
+                              chairQuantityRange: _chairQuantityDisplay,
                               tableType: _tableType,
                               tableQuantity: _tableQuantity,
                             )
@@ -446,8 +510,8 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                               children: [
                                 Row(
                                   children: [
-                                    const Text(
-                                      'Hello, Kirk  👋',
+                                    Text(
+                                      'Hello, $_userFirstName  👋',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w700,
@@ -497,8 +561,10 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                             ),
                           ],
                         ),
-                        child: step == 4
-                            ? _PeripheralsFormFields(
+                        child: Column(
+                          children: [
+                            if (step == 4)
+                              _PeripheralsFormFields(
                                 selectedItemIds: _selectedItemIds,
                                 onItemsChanged: (items) {
                                   setState(() {
@@ -514,47 +580,79 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                                   });
                                 },
                               )
-                            : step == 3
-                                ? _RoomSuggestionsList(
-                                    selectedRoomIds: _selectedRoomIds,
-                                    selectedRoomType: _selectedRoomType,
-                                    selectedAttendance: _selectedAttendance,
-                                    chairQuantityRange: _chairQuantityRange,
-                                    tableType: _tableType,
-                                    tableQuantity: _tableQuantity,
-                                  )
-                                : step == 2
-                                    ? _ReservationDetailsFormFields(
-                                        onRoomTypeChanged: (roomType) {
-                                          setState(() => _selectedRoomType = roomType);
-                                        },
-                                        onChairQuantityChanged: (qty) {
-                                          setState(() => _chairQuantityRange = qty);
-                                        },
-                                        onTableTypeChanged: (type) {
-                                          setState(() => _tableType = type);
-                                        },
-                                        onTableQuantityChanged: (qty) {
-                                          setState(() => _tableQuantity = qty);
-                                        },
-                                      )
-                                    : _ReservationFormFields(
-                                        onActivityNameChanged: (name) {
-                                          setState(() => _activityName = name);
-                                        },
-                                        onAttendanceChanged: (attendance) {
-                                          setState(() => _selectedAttendance = attendance);
-                                        },
-                                        onDateChanged: (date) {
-                                          setState(() => _eventDate = date);
-                                        },
-                                        onFromTimeChanged: (time) {
-                                          setState(() => _eventStartTime = time);
-                                        },
-                                        onToTimeChanged: (time) {
-                                          setState(() => _eventEndTime = time);
-                                        },
-                                      ),
+                            else if (step == 3)
+                              _RoomSuggestionsList(
+                                selectedRoomIds: _selectedRoomIds,
+                                selectedRoomType: _selectedRoomType,
+                                selectedAttendance: _selectedAttendance,
+                                chairQuantityRange: _chairQuantityRange,
+                                tableType: _tableType,
+                                tableQuantity: _tableQuantity,
+                                onSelectedRoomIdsChanged: (ids) {
+                                  setState(() {
+                                    _selectedRoomIds.clear();
+                                    _selectedRoomIds.addAll(ids);
+                                  });
+                                },
+                              )
+                            else if (step == 2)
+                              _ReservationDetailsFormFields(
+                                onRoomTypeChanged: (roomType) {
+                                  setState(() => _selectedRoomType = roomType);
+                                },
+                                onChairQuantityChanged: (qty) {
+                                  setState(() => _chairQuantityRange = qty);
+                                },
+                                onCustomChairCountChanged: (count) {
+                                  setState(() => _customChairExtraCount = count);
+                                },
+                                onTableTypeChanged: (type) {
+                                  setState(() => _tableType = type);
+                                },
+                              )
+                            else
+                              _ReservationFormFields(
+                                onActivityNameChanged: (name) {
+                                  setState(() => _activityName = name);
+                                },
+                                onAttendanceChanged: (attendance) {
+                                  setState(() => _selectedAttendance = attendance);
+                                },
+                                onDateChanged: (date) {
+                                  setState(() => _eventDate = date);
+                                },
+                                onFromTimeChanged: (time) {
+                                  setState(() => _eventStartTime = time);
+                                },
+                                onToTimeChanged: (time) {
+                                  setState(() => _eventEndTime = time);
+                                },
+                              ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 54,
+                              child: ElevatedButton(
+                                onPressed: _canProceedToNext ? _goToNextStep : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF233B7A),
+                                  disabledBackgroundColor: Colors.grey[300],
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Next',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     if (step != 5) const SizedBox(height: 80),
                   ],
@@ -595,20 +693,7 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                 ),
               ),
             )
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(left: 24, right: 24, bottom: 16),
-                child: _SwipeToProceedButton(
-                  onProceed: () {
-                    if (_currentStep < 5) {
-                      setState(() {
-                        _currentStep++;
-                      });
-                    }
-                  },
-                ),
-              ),
-            ),
+          : null,
     );
   }
 }
@@ -927,6 +1012,7 @@ class _RoomSuggestionsList extends StatefulWidget {
   final String? chairQuantityRange;
   final String? tableType;
   final String tableQuantity;
+  final Function(Set<int>)? onSelectedRoomIdsChanged;
   
   const _RoomSuggestionsList({
     required this.selectedRoomIds,
@@ -935,6 +1021,7 @@ class _RoomSuggestionsList extends StatefulWidget {
     this.chairQuantityRange,
     this.tableType,
     required this.tableQuantity,
+    this.onSelectedRoomIdsChanged,
   });
 
   @override
@@ -944,11 +1031,21 @@ class _RoomSuggestionsList extends StatefulWidget {
 class _RoomSuggestionsListState extends State<_RoomSuggestionsList> {
   final _inventoryService = InventoryService();
   late Future<List<Room>> _roomsFuture;
+  late Set<int> _localSelectedRoomIds;
 
   @override
   void initState() {
     super.initState();
     _roomsFuture = _inventoryService.getAvailableRooms();
+    _localSelectedRoomIds = Set.from(widget.selectedRoomIds);
+  }
+
+  @override
+  void didUpdateWidget(covariant _RoomSuggestionsList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!setEquals(oldWidget.selectedRoomIds, widget.selectedRoomIds)) {
+      _localSelectedRoomIds = Set.from(widget.selectedRoomIds);
+    }
   }
 
   int _getMinCapacityFromAttendance(String? attendance) {
@@ -1053,11 +1150,13 @@ class _RoomSuggestionsListState extends State<_RoomSuggestionsList> {
                     onTap: () {
                       setState(() {
                         if (isSelected) {
-                          widget.selectedRoomIds.remove(room.roomId);
+                          _localSelectedRoomIds.remove(room.roomId);
                         } else {
-                          widget.selectedRoomIds.add(room.roomId);
+                          _localSelectedRoomIds.clear();
+                          _localSelectedRoomIds.add(room.roomId);
                         }
                       });
+                      widget.onSelectedRoomIdsChanged?.call(Set.from(_localSelectedRoomIds));
                     },
                     child: Container(
                       decoration: BoxDecoration(
@@ -1167,14 +1266,14 @@ class _RoomSuggestionsListState extends State<_RoomSuggestionsList> {
 class _ReservationDetailsFormFields extends StatefulWidget {
   final Function(String?)? onRoomTypeChanged;
   final Function(String?)? onChairQuantityChanged;
+  final Function(int?)? onCustomChairCountChanged;
   final Function(String?)? onTableTypeChanged;
-  final Function(String)? onTableQuantityChanged;
 
   const _ReservationDetailsFormFields({
     this.onRoomTypeChanged,
     this.onChairQuantityChanged,
+    this.onCustomChairCountChanged,
     this.onTableTypeChanged,
-    this.onTableQuantityChanged,
   });
 
   @override
@@ -1186,6 +1285,8 @@ class _ReservationDetailsFormFieldsState extends State<_ReservationDetailsFormFi
   String? _roomType = 'Classroom';
   String? _chairQuantityRange;
   String? _tableType;
+  final TextEditingController _customChairCountController = TextEditingController();
+  int? _customChairCount;
 
   @override
   void initState() {
@@ -1195,6 +1296,7 @@ class _ReservationDetailsFormFieldsState extends State<_ReservationDetailsFormFi
 
   @override
   void dispose() {
+    _customChairCountController.dispose();
     super.dispose();
   }
 
@@ -1239,16 +1341,63 @@ class _ReservationDetailsFormFieldsState extends State<_ReservationDetailsFormFi
           children: [
             // Standard 45 chairs is the default minimum
             _buildChairRadio('45 (Standard)', '45', _chairQuantityRange, (val) {
-              setState(() => _chairQuantityRange = val);
+              setState(() {
+                _chairQuantityRange = val;
+                _customChairCount = null;
+                _customChairCountController.clear();
+              });
               widget.onChairQuantityChanged?.call(val);
+              widget.onCustomChairCountChanged?.call(null);
             }),
             // Users can select if they want extra chairs
             _buildChairRadio('45 + Extra (custom)', 'custom', _chairQuantityRange, (val) {
-              setState(() => _chairQuantityRange = val);
+              setState(() {
+                _chairQuantityRange = val;
+                _customChairCount = null;
+                _customChairCountController.clear();
+              });
               widget.onChairQuantityChanged?.call(val);
+              widget.onCustomChairCountChanged?.call(null);
             }),
           ],
         ),
+        if (_chairQuantityRange == 'custom') ...[
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _customChairCountController,
+            keyboardType: TextInputType.number,
+            maxLength: 2,
+            decoration: const InputDecoration(
+              labelText: 'Extra chairs (max 50)',
+              hintText: 'Enter number of additional chairs',
+              border: OutlineInputBorder(),
+              counterText: '',
+            ),
+            onChanged: (value) {
+              final parsedValue = int.tryParse(value) ?? 0;
+              final clampedValue = parsedValue.clamp(0, 50);
+              if (parsedValue != clampedValue) {
+                _customChairCountController.text = clampedValue.toString();
+                _customChairCountController.selection = TextSelection.fromPosition(TextPosition(offset: _customChairCountController.text.length));
+              }
+              setState(() {
+                _customChairCount = clampedValue > 0 ? clampedValue : null;
+              });
+              final displayValue = clampedValue > 0
+                  ? '45 + $clampedValue (total ${45 + clampedValue})'
+                  : 'custom';
+              widget.onChairQuantityChanged?.call(displayValue);
+              widget.onCustomChairCountChanged?.call(_customChairCount);
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _customChairCount != null
+                ? 'Total chairs: ${45 + _customChairCount!}'
+                : 'Enter up to 50 extra chairs',
+            style: TextStyle(color: Colors.grey[700], fontSize: 13),
+          ),
+        ],
         const SizedBox(height: 18),
         // LABEL: Select table type - only 3 options: arm chair, Trapezoidal, accounting table
         const Text('Select Table Type *', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -1477,71 +1626,6 @@ class _ReservationFormFieldsState extends State<_ReservationFormFields> {
   }
 }
 
-class _SwipeToProceedButton extends StatefulWidget {
-  final VoidCallback onProceed;
-  const _SwipeToProceedButton({required this.onProceed});
-
-  @override
-  State<_SwipeToProceedButton> createState() => _SwipeToProceedButtonState();
-}
-
-class _SwipeToProceedButtonState extends State<_SwipeToProceedButton> {
-  double _drag = 0;
-  bool _completed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width - 80;
-    return GestureDetector(
-      onHorizontalDragUpdate: (details) {
-        setState(() {
-          _drag += details.delta.dx;
-          if (_drag < 0) _drag = 0;
-          if (_drag > width - 60) _drag = width - 60;
-        });
-      },
-      onHorizontalDragEnd: (details) {
-        if (_drag > width * 0.6) {
-          setState(() => _completed = true);
-          Future.delayed(const Duration(milliseconds: 300), widget.onProceed);
-        } else {
-          setState(() => _drag = 0);
-        }
-      },
-      child: Stack(
-        children: [
-          Container(
-            width: width,
-            height: 54,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(32),
-              boxShadow: [BoxShadow(color: const Color(0x14000000), blurRadius: 8, offset: const Offset(0, 2))],
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              _completed ? 'Proceeding...' : 'Swipe Right To proceed',
-              style: const TextStyle(color: Color(0xFF233B7A), fontWeight: FontWeight.w700, fontSize: 18),
-            ),
-          ),
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 80),
-            left: _drag,
-            top: 0,
-            bottom: 0,
-            child: Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(color: const Color(0xFF233B7A), borderRadius: BorderRadius.circular(32)),
-              child: const Icon(Icons.arrow_forward, color: Colors.white, size: 28),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Simple Item Reservation Form - Only items, no rooms
 class ItemReservationFormPage extends StatefulWidget {
   const ItemReservationFormPage({super.key});
@@ -1728,21 +1812,28 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      FutureBuilder(
-                        future: _authService.getCurrentUser(),
-                        builder: (context, snapshot) {
-                          final userName = snapshot.data?.firstName ?? 'User';
-                          return Text(
-                            'Hello, $userName 👋',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
-                            ),
-                          );
-                        },
+                      if (_currentStep > 1)
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 28),
+                          onPressed: () => setState(() => _currentStep--),
+                        ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FutureBuilder(
+                          future: _authService.getCurrentUser(),
+                          builder: (context, snapshot) {
+                            final userName = snapshot.data?.firstName ?? 'User';
+                            return Text(
+                              'Hello, $userName 👋',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
+                              ),
+                            );
+                          },
+                        ),
                       ),
                       InkWell(
                         onTap: () => Navigator.pop(context),
@@ -2009,20 +2100,6 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
             padding: const EdgeInsets.all(18),
             child: Row(
               children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => setState(() => _currentStep = 1),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[300],
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text('Back',
-                        style: TextStyle(color: Colors.black)),
-                  ),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _selectedItemIds.isEmpty
