@@ -399,7 +399,8 @@ class _BiggerSpacesReservationFormPageState
                                         }
                                       },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFF5BC1D),
+                                  backgroundColor: const Color(0xFF233B7A),
+                                  disabledBackgroundColor: Colors.grey[300],
                                   foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -435,12 +436,29 @@ class _BiggerSpacesReservationFormPageState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          children: const [
-            Icon(Icons.apartment_rounded, color: Color(0xFF233B7A), size: 32),
-            SizedBox(width: 10),
-            Text(
-              'NUtilize Reservation Form',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+          children: [
+            const Icon(Icons.apartment_rounded, color: Color(0xFF233B7A), size: 32),
+            const SizedBox(width: 8),
+            RichText(
+              text: TextSpan(
+                children: [
+                  const TextSpan(
+                    text: 'NUtilize ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const TextSpan(
+                    text: 'Reservation Form',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
