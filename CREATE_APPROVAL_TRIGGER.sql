@@ -5,13 +5,16 @@
 -- The actual approval creation is handled by your existing web system.
 --
 -- Approval Chain Logic:
+-- - If the reservation includes a Gym room:
+--   General Education → [Item Owner if needed] → Program Chair → SDAO → DO → Security → Physical Facilities
 -- - If item owner IS "Physical Facilities": 
 --   Program Chair → SDAO → DO → Security → Physical Facilities (5 stages)
 -- - If item owner is NOT "Physical Facilities": 
 --   [Item Owner] → Program Chair → SDAO → DO → Security → Physical Facilities (6+ stages)
 --
--- The mobile app will dynamically show/hide the "Designated Item Owner" stage
--- based on whether the reservation items belong to Physical Facilities or not.
+-- The mobile app will dynamically show/hide the "General Education" and
+-- "Designated Item Owner" stages based on whether the reservation includes
+-- a Gym room and/or items that do not belong to Physical Facilities.
 -- ============================================================================
 
 -- NOTE: DO NOT RUN THIS TRIGGER - your web system already handles approval creation
@@ -29,7 +32,9 @@ DECLARE
   v_reservation_id bigint;
   v_owner_id bigint;
   v_owner_name varchar;
+  v_has_gym_room boolean := false;
   v_owner_office_id bigint;
+  v_general_education_office_id bigint;
   v_existing_approvals_count bigint;
   v_office_id bigint;
 BEGIN
@@ -57,6 +62,29 @@ BEGIN
   FROM items i
   JOIN item_owners io ON i.owner_id = io.owner_id
   WHERE i.item_id = NEW.item_id;
+
+  -- Check whether this reservation includes a Gym room
+  SELECT EXISTS (
+    SELECT 1
+    FROM reservation_details rd
+    JOIN reservation_rooms rr ON rd.reservation_rooms_id = rr.reservation_rooms_id
+    JOIN rooms r ON rr.room_id = r.room_id
+    WHERE rd.reservation_id = v_reservation_id
+      AND LOWER(r.room_type) = 'gym'
+  ) INTO v_has_gym_room;
+
+  -- Add General Education first for Gym reservations
+  IF v_has_gym_room THEN
+    SELECT office_id INTO v_general_education_office_id
+    FROM offices
+    WHERE department_name = 'General Education'
+    LIMIT 1;
+
+    IF v_general_education_office_id IS NOT NULL THEN
+      INSERT INTO reservation_approvals (reservation_id, office_id, status, created_at, updated_at)
+      VALUES (v_reservation_id, v_general_education_office_id, 'pending', NOW(), NOW());
+    END IF;
+  END IF;
 
   -- Add item owner approval if NOT Physical Facilities
   IF v_owner_name IS NOT NULL AND v_owner_name != 'Physical Facilities' THEN

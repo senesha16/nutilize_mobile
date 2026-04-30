@@ -17,6 +17,11 @@ import 'package:nutilize/features/auth/data/auth_service.dart';
 
 const List<_ApprovalStageDefinition> _approvalStages = [
   _ApprovalStageDefinition(
+    displayName: 'General Education',
+    aliases: ['general education', 'gened', 'gen ed'],
+    requiresGymSpace: true,
+  ),
+  _ApprovalStageDefinition(
     displayName: 'Designated Item Owner',
     aliases: [
       'designated item owner',
@@ -49,9 +54,14 @@ const List<_ApprovalStageDefinition> _approvalStages = [
 
 List<_ApprovalStageDefinition> _buildApprovalStages({
   required bool hasNonPhysicalFacilitiesItems,
+  required bool hasGymSpace,
 }) {
   return _approvalStages
       .where((stage) {
+        if (stage.requiresGymSpace) {
+          return hasGymSpace;
+        }
+
         // Include "Designated Item Owner" only if ANY item is not from Physical Facilities
         if (stage.requiresBorrowedItems) {
           return hasNonPhysicalFacilitiesItems;
@@ -85,12 +95,18 @@ class _ApprovalStageDefinition {
   final String displayName;
   final List<String> aliases;
   final bool requiresBorrowedItems;
+  final bool requiresGymSpace;
 
   const _ApprovalStageDefinition({
     required this.displayName,
     required this.aliases,
     this.requiresBorrowedItems = false,
+    this.requiresGymSpace = false,
   });
+}
+
+bool _hasGymSpace(List<BorrowedRoom> borrowedRooms) {
+  return borrowedRooms.any((room) => room.roomType.toLowerCase().contains('gym'));
 }
 
 class NUtilizeLogo extends StatelessWidget {
@@ -864,14 +880,18 @@ class _ReservationTimelineState extends State<_ReservationTimeline> {
       final offices = await officeService.getAllOffices();
       final borrowedItems =
           await reservationService.getReservationItems(widget.reservationId!);
+      final borrowedRooms =
+          await reservationService.getReservationRooms(widget.reservationId!);
       
       // Check if any item is NOT from Physical Facilities
       final hasNonPhysicalFacilitiesItems = borrowedItems.any(
         (item) => item.ownerName != 'Physical Facilities',
       );
+      final hasGymSpace = _hasGymSpace(borrowedRooms);
 
       final approvalStages = _buildApprovalStages(
         hasNonPhysicalFacilitiesItems: hasNonPhysicalFacilitiesItems,
+        hasGymSpace: hasGymSpace,
       );
 
       final officeMap = {for (var office in offices) office.officeId: office};
@@ -1173,14 +1193,18 @@ class _ProgressIndicatorState extends State<_ProgressIndicator> {
       final offices = await officeService.getAllOffices();
       final borrowedItems =
           await reservationService.getReservationItems(widget.reservationId!);
+      final borrowedRooms =
+          await reservationService.getReservationRooms(widget.reservationId!);
       
       // Check if any item is NOT from Physical Facilities
       final hasNonPhysicalFacilitiesItems = borrowedItems.any(
         (item) => item.ownerName != 'Physical Facilities',
       );
+      final hasGymSpace = _hasGymSpace(borrowedRooms);
 
       final approvalStages = _buildApprovalStages(
         hasNonPhysicalFacilitiesItems: hasNonPhysicalFacilitiesItems,
+        hasGymSpace: hasGymSpace,
       );
       final officeMap = {for (var office in offices) office.officeId: office};
 
@@ -1213,34 +1237,44 @@ class _ProgressIndicatorState extends State<_ProgressIndicator> {
       future: _completedCountFuture,
       builder: (context, snapshot) {
         final completedCount = snapshot.data ?? 0;
-        return FutureBuilder<List<BorrowedItem>>(
+        return FutureBuilder<List<BorrowedRoom>>(
           future: widget.reservationId == null
               ? Future.value([])
-              : ReservationService().getReservationItems(widget.reservationId!),
-          builder: (context, itemsSnapshot) {
-            final borrowedItems = itemsSnapshot.data ?? [];
-            final hasNonPhysicalFacilitiesItems = borrowedItems.any(
-              (item) => item.ownerName != 'Physical Facilities',
-            );
-            final totalStages = _buildApprovalStages(
-              hasNonPhysicalFacilitiesItems: hasNonPhysicalFacilitiesItems,
-            ).length;
+              : ReservationService().getReservationRooms(widget.reservationId!),
+          builder: (context, roomsSnapshot) {
+            final borrowedRooms = roomsSnapshot.data ?? [];
+            final hasGymSpace = _hasGymSpace(borrowedRooms);
+            return FutureBuilder<List<BorrowedItem>>(
+              future: widget.reservationId == null
+                  ? Future.value([])
+                  : ReservationService().getReservationItems(widget.reservationId!),
+              builder: (context, itemsSnapshot) {
+                final borrowedItems = itemsSnapshot.data ?? [];
+                final hasNonPhysicalFacilitiesItems = borrowedItems.any(
+                  (item) => item.ownerName != 'Physical Facilities',
+                );
+                final totalStages = _buildApprovalStages(
+                  hasNonPhysicalFacilitiesItems: hasNonPhysicalFacilitiesItems,
+                  hasGymSpace: hasGymSpace,
+                ).length;
 
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                totalStages,
-                (i) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Icon(
-                    Icons.check_circle,
-                    color: i < completedCount
-                        ? const Color(0xFFF5BC1D)
-                        : const Color(0xFFD0D0D0),
-                    size: 28,
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    totalStages,
+                    (i) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Icon(
+                        Icons.check_circle,
+                        color: i < completedCount
+                            ? const Color(0xFFF5BC1D)
+                            : const Color(0xFFD0D0D0),
+                        size: 28,
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         );

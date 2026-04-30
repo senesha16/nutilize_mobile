@@ -990,7 +990,10 @@ class _RequestSubmittedFeedbackPageState
     super.initState();
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          MainShell.routeName,
+          (route) => false,
+        );
       }
     });
   }
@@ -1051,7 +1054,10 @@ class _RequestSubmittedFeedbackPageState
                     ),
                   ),
                   onPressed: () {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      MainShell.routeName,
+                      (route) => false,
+                    );
                   },
                   child: const Text(
                     'Finish',

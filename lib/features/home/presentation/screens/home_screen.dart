@@ -884,10 +884,19 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
       final officeService = OfficeService();
       final approvals = await reservationService.getReservationApprovals(reservationId);
       final borrowedItems = await reservationService.getReservationItems(reservationId);
+      final borrowedRooms = await reservationService.getReservationRooms(reservationId);
       final offices = await officeService.getAllOffices();
       final officeMap = {for (var office in offices) office.officeId: office};
 
+      final hasGymSpace = borrowedRooms.any(
+        (room) => room.roomType.toLowerCase().contains('gym'),
+      );
+      final hasNonPhysicalFacilitiesItems = borrowedItems.any(
+        (item) => item.ownerName != 'Physical Facilities',
+      );
+
       final approvalStages = [
+        if (hasGymSpace) ['general education', 'gened', 'gen ed'],
         ['designated item owner', 'item owner', 'designated owner'],
         ['program chair', 'programchair', 'chair'],
         ['sdao'],
@@ -896,9 +905,18 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
         ['physical facilities', 'facilities', 'physical'],
       ];
 
-      final applicableStages = borrowedItems.isEmpty
-          ? approvalStages.skip(1).toList()
-          : approvalStages;
+      final applicableStages = <List<String>>[];
+      if (hasGymSpace) {
+        applicableStages.add(approvalStages.first);
+      }
+      if (hasNonPhysicalFacilitiesItems) {
+        applicableStages.add(
+          approvalStages[hasGymSpace ? 1 : 0],
+        );
+      }
+      applicableStages.addAll(
+        approvalStages.sublist(hasGymSpace ? 2 : 1),
+      );
 
       final approvedStages = <int>{};
       for (final approval in approvals) {
