@@ -21,6 +21,8 @@ class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
   final AuthService _authService = AuthService();
   final NotificationService _notificationService = NotificationService.instance;
+  final GlobalKey _homeViewKey = GlobalKey();
+  late final List<Widget> _tabs;
   Timer? _notificationTimer;
   bool _isCheckingNotifications = false;
 
@@ -30,13 +32,6 @@ class _MainShellState extends State<MainShell> {
     Icons.calendar_month_rounded,
     Icons.edit_square,
     Icons.person_rounded,
-  ];
-
-  static final List<Widget> _tabs = [
-    HomeScreen(),
-    CalendarScreen(),
-    RequestsScreen(),
-    AccountScreen(),
   ];
 
   static const _desktopIcons = [
@@ -51,6 +46,12 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+    _tabs = [
+      HomeScreen(viewKey: _homeViewKey),
+      const CalendarScreen(),
+      const RequestsScreen(),
+      const AccountScreen(),
+    ];
     _startNotificationMonitoring();
   }
 
@@ -132,8 +133,12 @@ class _MainShellState extends State<MainShell> {
                           selectedIndex: _currentIndex,
                           labels: _desktopLabels,
                           icons: _desktopIcons,
-                          onTap: (index) =>
-                              setState(() => _currentIndex = index),
+                          onTap: (index) {
+                            setState(() => _currentIndex = index);
+                            if (index == 0) {
+                              (_homeViewKey.currentState as dynamic)?.refreshReservations();
+                            }
+                          },
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -178,7 +183,12 @@ class _MainShellState extends State<MainShell> {
               currentIndex: _currentIndex,
               labels: _labels,
               icons: _icons,
-              onTap: (index) => setState(() => _currentIndex = index),
+              onTap: (index) {
+              setState(() => _currentIndex = index);
+              if (index == 0) {
+                (_homeViewKey.currentState as dynamic)?.refreshReservations();
+              }
+            },
             ),
           ),
         );

@@ -11,7 +11,9 @@ import 'package:nutilize/core/services/office_service.dart';
 import 'dart:async';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.viewKey});
+
+  final Key? viewKey;
 
   @override
   Widget build(BuildContext context) {
@@ -20,12 +22,12 @@ class HomeScreen extends StatelessWidget {
       return const _HomeDesktopDashboard();
     }
 
-    return const _HomeMobileView();
+    return _HomeMobileView(key: viewKey);
   }
 }
 
 class _HomeMobileView extends StatefulWidget {
-  const _HomeMobileView();
+  const _HomeMobileView({super.key});
 
   @override
   State<_HomeMobileView> createState() => _HomeMobileViewState();
@@ -53,6 +55,10 @@ class _HomeMobileViewState extends State<_HomeMobileView>
     if (state == AppLifecycleState.resumed) {
       _reservationKey.currentState?.refreshReservations();
     }
+  }
+
+  void refreshReservations() {
+    _reservationKey.currentState?.refreshReservations();
   }
 
   @override
