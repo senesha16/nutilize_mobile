@@ -15,7 +15,7 @@ class CalendarScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.sizeOf(context).width >= 1100;
+    final isDesktop = MediaQuery.sizeOf(context).width >= 9999;
     if (isDesktop) {
       return const _CalendarDesktopPage();
     }

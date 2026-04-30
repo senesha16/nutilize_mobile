@@ -66,6 +66,7 @@ class _BiggerSpacesReservationFormPageState
   int _currentStep =
       1; // Step 1: Activity details & space, Step 2: Items, Step 3: Confirmation
   bool _isSubmitting = false;
+  bool _hasConfirmedTerms = false;
   String _userFirstName = 'User'; // Default fallback
 
   @override
@@ -182,6 +183,13 @@ class _BiggerSpacesReservationFormPageState
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Please select a space')));
+      return;
+    }
+
+    if (!_hasConfirmedTerms) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please confirm you have read the policies before finishing.')));
       return;
     }
 
@@ -381,7 +389,7 @@ class _BiggerSpacesReservationFormPageState
                           children: [
                             Expanded(
                               child: ElevatedButton(
-                                onPressed: _isSubmitting
+                                onPressed: _isSubmitting || (step == 3 && !_hasConfirmedTerms)
                                     ? null
                                     : () {
                                         if (step < 3) {
@@ -876,6 +884,89 @@ class _BiggerSpacesReservationFormPageState
               return const SizedBox.shrink();
             },
           ),
+          const SizedBox(height: 20),
+          const Text(
+            'Policies and Guidelines on the Use of School Facilities',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: Color(0xFF233B7A),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildPolicyPoint('Fill up and submit the reservation form together with the layout of the venue (if applicable).'),
+          _buildPolicyPoint('The venue shall be used only for the purpose stated in the reservation form.'),
+          _buildPolicyPoint('All decorations must be arranged/setup in coordination with the Physical Facilities Management Office. Decorations should not be hung from or placed on ceilings, fire safety equipment or overhead lighting. At no time may any items be attached to or hung from sprinkler system piping.'),
+          _buildPolicyPoint('Posting of banners, temporary signage, decorations and other materials that can possibly damage the facilities are strictly prohibited.'),
+          _buildPolicyPoint('The organization/department must assume the responsibility of preparing the place. Removal of decorations, posters and any related items and cleaning the facility are likewise the responsibilities of the organization/department.'),
+          _buildPolicyPoint('The organization/department must see to it that the facility is not filled beyond its capacity.'),
+          _buildPolicyPoint('Bringing of alcoholic beverages and drugs are strictly prohibited.'),
+          _buildPolicyPoint('Persons under the influence of alcohol/drug are not allowed within the premises.'),
+          _buildPolicyPoint('The organization/department must peacefully vacate the facility after the reserved date and time.'),
+          _buildPolicyPoint('The organization must observe cleanliness and orderliness within and after the duration of the activity.'),
+          _buildPolicyPoint('Final coordination with the Physical Facilities Management Office three or four days before the scheduled activity is a must.'),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(
+                  value: _hasConfirmedTerms,
+                  activeColor: const Color(0xFF233B7A),
+                  onChanged: (value) => setState(() => _hasConfirmedTerms = value ?? false),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _hasConfirmedTerms = !_hasConfirmedTerms),
+                  child: const Text(
+                    'I/We have read, understand and agree to abide by all the rules listed in the application form.',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: Color(0xFF233B7A),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (!_hasConfirmedTerms)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                'Please confirm that you have read the policies before finishing.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.red,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPolicyPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(right: 10, top: 4),
+            child: Text('•', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 12, height: 1.5),
+              textAlign: TextAlign.justify,
+            ),
+          ),
         ],
       ),
     );
@@ -899,9 +990,7 @@ class _RequestSubmittedFeedbackPageState
     super.initState();
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil(MainShell.routeName, (route) => false);
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     });
   }

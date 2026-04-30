@@ -115,7 +115,7 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= 1100;
+        final isDesktop = constraints.maxWidth >= 9999;
 
         if (isDesktop) {
           return Scaffold(

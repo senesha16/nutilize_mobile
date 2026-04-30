@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:nutilize/core/services/reservation_service.dart';
 import 'package:nutilize/core/services/office_service.dart';
 import 'package:nutilize/core/models/reservation_approval.dart';
 import 'package:nutilize/core/models/office.dart';
 import 'package:nutilize/core/models/reservation.dart';
 import 'package:nutilize/features/home/presentation/pages/report_issue_page.dart';
+import 'package:nutilize/features/auth/data/auth_service.dart';
 
 const List<_ApprovalStageDefinition> _approvalStages = [
   _ApprovalStageDefinition(
@@ -43,10 +48,16 @@ const List<_ApprovalStageDefinition> _approvalStages = [
 ];
 
 List<_ApprovalStageDefinition> _buildApprovalStages({
-  required bool hasBorrowedItems,
+  required bool hasNonPhysicalFacilitiesItems,
 }) {
   return _approvalStages
-      .where((stage) => !stage.requiresBorrowedItems || hasBorrowedItems)
+      .where((stage) {
+        // Include "Designated Item Owner" only if ANY item is not from Physical Facilities
+        if (stage.requiresBorrowedItems) {
+          return hasNonPhysicalFacilitiesItems;
+        }
+        return true;
+      })
       .toList();
 }
 
@@ -194,6 +205,238 @@ class _ReservationStatusDialogContentState
     super.dispose();
   }
 
+  Future<void> _generateAndPrintPDF() async {
+    try {
+      final reservation = await ReservationService()
+          .getReservation(widget.reservationId!);
+      final approvals = await ReservationService()
+          .getReservationApprovals(widget.reservationId!);
+      final offices = await OfficeService().getAllOffices();
+      final officeNames = {
+        for (final office in offices) office.officeId: office.departmentName,
+      };
+
+      if (reservation == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not load reservation details'),
+            ),
+          );
+        }
+        return;
+      }
+
+      final pdf = pw.Document();
+      
+      // Format the date
+      String formatDate(DateTime? date) {
+        if (date == null) return 'N/A';
+        return '${date.month}/${date.day}/${date.year}';
+      }
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.all(40),
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                // Header
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'NUtilize',
+                          style: pw.TextStyle(
+                            fontSize: 24,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColor.fromInt(0xFF233B7A),
+                          ),
+                        ),
+                        pw.Text(
+                          'Reservation Approval Document',
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        pw.Text(
+                          'Reservation #${reservation.reservationId}',
+                          style: pw.TextStyle(
+                            fontSize: 14,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.Text(
+                          'Generated: ${DateTime.now().toString().split('.')[0]}',
+                          style: const pw.TextStyle(fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 30),
+                
+                // Divider
+                pw.Divider(color: PdfColor.fromInt(0xFF233B7A)),
+                pw.SizedBox(height: 20),
+
+                // Reservation Details Section
+                pw.Text(
+                  'RESERVATION DETAILS',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColor.fromInt(0xFF233B7A),
+                  ),
+                ),
+                pw.SizedBox(height: 12),
+
+                pw.Container(
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColor.fromInt(0xFFDDDDDD)),
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                  ),
+                  padding: const pw.EdgeInsets.all(12),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      _buildDetailRow('Activity Name', reservation.activityName),
+                      _buildDetailRow('Activity Date', formatDate(reservation.dateOfActivity)),
+                      _buildDetailRow('Reservation Type', 'Room & Items'),
+                      _buildDetailRow('Status', reservation.overallStatus?.toUpperCase() ?? 'PENDING'),
+                      _buildDetailRow('Submitted On', formatDate(reservation.createdAt)),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 30),
+
+                // Approval Status Section
+                pw.Text(
+                  'APPROVAL STATUS',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColor.fromInt(0xFF233B7A),
+                  ),
+                ),
+                pw.SizedBox(height: 12),
+
+                ...approvals.map((approval) {
+                  final isApproved = approval.status.toLowerCase() == 'approved';
+                  return pw.Container(
+                    margin: const pw.EdgeInsets.only(bottom: 8),
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(
+                        color: isApproved 
+                            ? PdfColor.fromInt(0xFF4CAF50) 
+                            : PdfColor.fromInt(0xFFFFC107),
+                      ),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                      color: isApproved 
+                          ? PdfColor.fromInt(0xFFF1F8E9) 
+                          : PdfColor.fromInt(0xFFFFFDE7),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text(
+                              officeNames[approval.officeId] ?? 'Office ${approval.officeId}',
+                              style: pw.TextStyle(
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.Text(
+                              isApproved ? '✓ APPROVED' : '⊙ PENDING',
+                              style: pw.TextStyle(
+                                fontSize: 11,
+                                fontWeight: pw.FontWeight.bold,
+                                color: isApproved 
+                                    ? PdfColor.fromInt(0xFF4CAF50) 
+                                    : PdfColor.fromInt(0xFFFFC107),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (approval.approvedAt != null)
+                          pw.Text(
+                            'Approved on: ${formatDate(approval.approvedAt)}',
+                            style: const pw.TextStyle(fontSize: 9),
+                          ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+
+                pw.SizedBox(height: 30),
+
+                // Footer
+                pw.Divider(color: PdfColor.fromInt(0xFFDDDDDD)),
+                pw.SizedBox(height: 10),
+                pw.Text(
+                  'This is an official NUtilize reservation document. For inquiries, contact the administration.',
+                  style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+      // Show preview
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name: 'Reservation_${reservation.reservationId}.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating PDF: $e'),
+          ),
+        );
+      }
+    }
+  }
+
+  pw.Widget _buildDetailRow(String label, String value) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 6),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            label,
+            style: pw.TextStyle(
+              fontSize: 11,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColor.fromInt(0xFF666666),
+            ),
+          ),
+          pw.Text(
+            value,
+            style: const pw.TextStyle(
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -335,125 +578,241 @@ class _ReservationStatusDialogContentState
                     builder: (context, snapshot) {
                       final reservation = snapshot.data;
                       final status = reservation?.overallStatus?.toLowerCase() ?? '';
-                      final canCancel = status == 'pending' || status == 'approved';
+                      // Allow cancellation unless the reservation is completed, rejected, or cancelled
+                      final canCancel = status != 'completed' && status != 'rejected' && status != 'cancelled';
 
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 8,
                         ),
-                        child: Row(
+                        child: Column(
                           children: [
-                            if (canCancel)
-                              Expanded(
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.redAccent,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                  ),
-                                  onPressed: _isCancelling || reservation == null
-                                      ? null
-                                      : () async {
-                                          // Show confirmation dialog
-                                          final confirmed = await showDialog<bool>(
-                                            context: context,
-                                            builder: (context) => AlertDialog(
-                                              title: const Text('Are you sure you want to cancel?'),
-                                              content: const Text(
-                                                'This action cannot be undone. Your reservation will be cancelled.',
-                                              ),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () => Navigator.of(context).pop(false),
-                                                  child: const Text('No, keep it'),
-                                                ),
-                                                TextButton(
-                                                  onPressed: () => Navigator.of(context).pop(true),
-                                                  child: const Text(
-                                                    'Yes, cancel',
-                                                    style: TextStyle(color: Colors.red),
+                            // First Row: Cancel Request & Issue Report
+                            Row(
+                              children: [
+                                if (canCancel)
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.redAccent,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(vertical: 14),
+                                      ),
+                                      onPressed: _isCancelling || reservation == null
+                                          ? null
+                                          : () async {
+                                              // Show confirmation dialog
+                                              final confirmed = await showDialog<bool>(
+                                                context: context,
+                                                builder: (context) => AlertDialog(
+                                                  title: const Text('Cancel Request'),
+                                                  content: const Text(
+                                                    'Do you want to cancel this reservation request? This cannot be undone.',
                                                   ),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.of(context).pop(false),
+                                                      child: const Text('Keep Request'),
+                                                    ),
+                                                    TextButton(
+                                                      onPressed: () => Navigator.of(context).pop(true),
+                                                      child: const Text(
+                                                        'Cancel Request',
+                                                        style: TextStyle(color: Colors.red),
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
-                                              ],
+                                              );
+
+                                              if (confirmed != true) return;
+
+                                              setState(() => _isCancelling = true);
+                                              try {
+                                                await ReservationService()
+                                                    .cancelReservation(widget.reservationId!);
+                                                if (mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    const SnackBar(
+                                                      content:
+                                                          Text('Reservation cancelled successfully'),
+                                                    ),
+                                                  );
+                                                  Navigator.of(context).pop(true);
+                                                }
+                                              } catch (e) {
+                                                if (mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text('Failed to cancel reservation: $e'),
+                                                    ),
+                                                  );
+                                                  setState(() => _isCancelling = false);
+                                                }
+                                              }
+                                            },
+                                      child: Text(
+                                        _isCancelling ? 'Cancelling...' : 'Cancel Request',
+                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                  ),
+                                if (canCancel) const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF233B7A),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                    ),
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => ReportIssuePage(
+                                            reservationId: widget.reservationId,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: const Text(
+                                      'Issue report',
+                                      style: TextStyle(fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // Second Row: Follow Up & Print
+                            Row(
+                              children: [
+                                // Follow Up Button - only show if there's a pending approval
+                                FutureBuilder<List<ReservationApproval>>(
+                                  future: widget.reservationId != null
+                                      ? ReservationService().getReservationApprovals(widget.reservationId!)
+                                      : Future.value([]),
+                                  builder: (context, snapshot) {
+                                    final approvals = snapshot.data ?? [];
+                                    final hasPendingApproval = approvals.any(
+                                      (approval) => approval.status.toLowerCase() == 'pending',
+                                    );
+
+                                    if (!hasPendingApproval || snapshot.connectionState == ConnectionState.waiting) {
+                                      return Expanded(
+                                        child: ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.grey.shade400,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
+                                            padding: const EdgeInsets.symmetric(vertical: 14),
+                                          ),
+                                          onPressed: null,
+                                          child: const Text(
+                                            'Follow Up',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+
+                                    return Expanded(
+                                      child: ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.orange,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                        ),
+                                        onPressed: () async {
+                                          // Find the first pending approval
+                                          final pendingApproval = approvals.firstWhere(
+                                            (approval) => approval.status.toLowerCase() == 'pending',
                                           );
 
-                                          if (confirmed != true) return;
+                                          // Get current user
+                                          final authService = AuthService();
+                                          final currentUser = await authService.getCurrentUser();
 
-                                          setState(() => _isCancelling = true);
-                                          try {
-                                            await ReservationService()
-                                                .cancelReservation(widget.reservationId!);
+                                          if (currentUser == null) {
                                             if (mounted) {
                                               ScaffoldMessenger.of(context).showSnackBar(
                                                 const SnackBar(
-                                                  content:
-                                                      Text('Reservation cancelled successfully'),
+                                                  content: Text('Please log in to request follow-up'),
                                                 ),
                                               );
-                                              Navigator.of(context).pop(true);
+                                            }
+                                            return;
+                                          }
+
+                                          try {
+                                            await ReservationService().requestFollowUp(
+                                              pendingApproval.approvalId,
+                                              currentUser.userId,
+                                            );
+
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('Follow-up request sent successfully'),
+                                                ),
+                                              );
+                                              // Force refresh by waiting a moment
+                                              await Future.delayed(const Duration(milliseconds: 500));
+                                              if (mounted) {
+                                                // Close and reopen the dialog with fresh data
+                                                Navigator.of(context).pop();
+                                                await Future.delayed(const Duration(milliseconds: 300));
+                                                if (mounted) {
+                                                  showReservationStatusDialog(context, reservationId: widget.reservationId);
+                                                }
+                                              }
                                             }
                                           } catch (e) {
                                             if (mounted) {
                                               ScaffoldMessenger.of(context).showSnackBar(
                                                 SnackBar(
-                                                  content: Text('Failed to cancel reservation: $e'),
+                                                  content: Text('Failed to send follow-up: $e'),
                                                 ),
                                               );
-                                              setState(() => _isCancelling = false);
                                             }
                                           }
                                         },
-                                  child: Text(
-                                    _isCancelling ? 'Cancelling...' : 'Cancel Request',
-                                    style: const TextStyle(fontWeight: FontWeight.w600),
-                                  ),
-                                ),
-                              ),
-                            if (canCancel) const SizedBox(width: 16),
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF233B7A),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                ),
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => ReportIssuePage(
-                                        reservationId: widget.reservationId,
+                                        child: const Text(
+                                          'Follow Up',
+                                          style: TextStyle(fontWeight: FontWeight.w600),
+                                        ),
                                       ),
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF233B7A),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
                                     ),
-                                  );
-                                },
-                                child: const Text(
-                                  'Issue report',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF233B7A),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                                    onPressed: _generateAndPrintPDF,
+                                    child: const Text(
+                                      'Print',
+                                      style: TextStyle(fontWeight: FontWeight.w600),
+                                    ),
                                   ),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
                                 ),
-                                onPressed: () {},
-                                child: const Text(
-                                  'Print',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                              ),
+                              ],
                             ),
                           ],
                         ),
@@ -505,8 +864,14 @@ class _ReservationTimelineState extends State<_ReservationTimeline> {
       final offices = await officeService.getAllOffices();
       final borrowedItems =
           await reservationService.getReservationItems(widget.reservationId!);
+      
+      // Check if any item is NOT from Physical Facilities
+      final hasNonPhysicalFacilitiesItems = borrowedItems.any(
+        (item) => item.ownerName != 'Physical Facilities',
+      );
+
       final approvalStages = _buildApprovalStages(
-        hasBorrowedItems: borrowedItems.isNotEmpty,
+        hasNonPhysicalFacilitiesItems: hasNonPhysicalFacilitiesItems,
       );
 
       final officeMap = {for (var office in offices) office.officeId: office};
@@ -808,8 +1173,14 @@ class _ProgressIndicatorState extends State<_ProgressIndicator> {
       final offices = await officeService.getAllOffices();
       final borrowedItems =
           await reservationService.getReservationItems(widget.reservationId!);
+      
+      // Check if any item is NOT from Physical Facilities
+      final hasNonPhysicalFacilitiesItems = borrowedItems.any(
+        (item) => item.ownerName != 'Physical Facilities',
+      );
+
       final approvalStages = _buildApprovalStages(
-        hasBorrowedItems: borrowedItems.isNotEmpty,
+        hasNonPhysicalFacilitiesItems: hasNonPhysicalFacilitiesItems,
       );
       final officeMap = {for (var office in offices) office.officeId: office};
 
@@ -842,16 +1213,17 @@ class _ProgressIndicatorState extends State<_ProgressIndicator> {
       future: _completedCountFuture,
       builder: (context, snapshot) {
         final completedCount = snapshot.data ?? 0;
-        return FutureBuilder<bool>(
+        return FutureBuilder<List<BorrowedItem>>(
           future: widget.reservationId == null
-              ? Future.value(false)
-              : ReservationService()
-                  .getReservationItems(widget.reservationId!)
-                  .then((items) => items.isNotEmpty),
+              ? Future.value([])
+              : ReservationService().getReservationItems(widget.reservationId!),
           builder: (context, itemsSnapshot) {
-            final hasBorrowedItems = itemsSnapshot.data ?? false;
+            final borrowedItems = itemsSnapshot.data ?? [];
+            final hasNonPhysicalFacilitiesItems = borrowedItems.any(
+              (item) => item.ownerName != 'Physical Facilities',
+            );
             final totalStages = _buildApprovalStages(
-              hasBorrowedItems: hasBorrowedItems,
+              hasNonPhysicalFacilitiesItems: hasNonPhysicalFacilitiesItems,
             ).length;
 
             return Row(

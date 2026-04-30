@@ -258,6 +258,49 @@ class ReservationService {
     }
   }
 
+  /// Request follow-up for a pending approval
+  Future<ReservationApproval> requestFollowUp(
+    int approvalId,
+    int requestedByUserId,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('reservation_approvals')
+          .update({
+            'follow_up_requested': true,
+            'follow_up_requested_at': DateTime.now().toIso8601String(),
+            'follow_up_requested_by': requestedByUserId,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('approval_id', approvalId)
+          .select()
+          .single();
+
+      return ReservationApproval.fromJson(response as Map<String, dynamic>);
+    } catch (e) {
+      throw Exception('Failed to request follow-up: $e');
+    }
+  }
+
+  /// Get follow-up requests (for web system to fetch)
+  Future<List<ReservationApproval>> getFollowUpRequests() async {
+    try {
+      final response = await _supabase
+          .from('reservation_approvals')
+          .select()
+          .eq('follow_up_requested', true)
+          .eq('status', 'pending') // Only pending approvals
+          .order('follow_up_requested_at', ascending: false);
+
+      return (response as List)
+          .map((json) =>
+              ReservationApproval.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch follow-up requests: $e');
+    }
+  }
+
   /// Delete a reservation (cascades to details)
   Future<void> deleteReservation(int reservationId) async {
     try {
@@ -294,7 +337,7 @@ class ReservationService {
       final response = await _supabase
           .from('reservation_details')
           .select(
-              'quantity, reservation_items_id, reservation_items!inner(item_id, items!inner(item_id, item_name, category_id, item_categories(category_id, category_key, display_name)))')
+              'quantity, reservation_items_id, reservation_items!inner(item_id, items!inner(item_id, item_name, category_id, item_owners!inner(owner_name), item_categories(category_id, category_key, display_name)))')
           .eq('reservation_id', reservationId)
           .not('reservation_items_id', 'is', null);
 
@@ -330,18 +373,22 @@ class BorrowedItem {
   final String itemName;
   final String category;
   final int quantity;
+  final String ownerName; // New field for item owner
 
   BorrowedItem({
     required this.itemId,
     required this.itemName,
     required this.category,
     required this.quantity,
+    required this.ownerName,
   });
 
   factory BorrowedItem.fromJson(Map<String, dynamic> json) {
     final items = json['reservation_items'] as Map<String, dynamic>?;
     final item = items?['items'] as Map<String, dynamic>?;
     final categoryData = item?['item_categories'] as Map<String, dynamic>?;
+    final ownerData = item?['item_owners'] as Map<String, dynamic>?;
+    
     return BorrowedItem(
       itemId: item?['item_id'] as int? ?? 0,
       itemName: item?['item_name']?.toString() ?? 'Unknown',
@@ -349,6 +396,7 @@ class BorrowedItem {
           categoryData?['category_key']?.toString() ??
           'Uncategorized',
       quantity: json['quantity'] as int? ?? 1,
+      ownerName: ownerData?['owner_name']?.toString() ?? 'Unknown',
     );
   }
 }

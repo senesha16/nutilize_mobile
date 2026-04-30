@@ -45,6 +45,10 @@ dependencies:
   
   # For secure local storage
   flutter_secure_storage: ^9.0.0
+  
+  # For PDF generation and printing
+  pdf: ^3.12.0
+  printing: ^5.10.0
 
 dev_dependencies:
   flutter_test:
