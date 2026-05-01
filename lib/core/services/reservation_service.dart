@@ -95,6 +95,30 @@ class ReservationService {
     }
   }
 
+  /// Check if user has any overdue returning reservations
+  Future<bool> hasOverdueReturningReservations(int userId) async {
+    try {
+      final reservations = await getUserReservations(userId);
+      final now = DateTime.now();
+
+      return reservations.any((reservation) {
+        final status = (reservation.overallStatus ?? '').toLowerCase();
+        if (status == 'returned' || status == 'cancelled' || status == 'rejected') {
+          return false;
+        }
+
+        final endOfActivity = reservation.endOfActivity;
+        if (endOfActivity == null) return false;
+
+        // Overdue if past end of activity + 24 hours
+        final returnDeadline = endOfActivity.add(const Duration(hours: 24));
+        return now.isAfter(returnDeadline);
+      });
+    } catch (e) {
+      throw Exception('Failed to check overdue reservations: $e');
+    }
+  }
+
   /// Update reservation overall status
   Future<Reservation> updateReservationStatus(
     int reservationId,

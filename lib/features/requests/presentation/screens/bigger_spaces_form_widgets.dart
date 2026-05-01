@@ -206,6 +206,20 @@ class _BiggerSpacesReservationFormPageState
         return;
       }
 
+      // Check if user has overdue returning reservations
+      final hasOverdue = await _reservationService.hasOverdueReturningReservations(currentUser.userId);
+      if (hasOverdue) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You have overdue items to return. Please return your items first before making new reservations.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
       final reservation = await _reservationService.createReservation(
         userId: currentUser.userId,
         activityName: _activityName,
