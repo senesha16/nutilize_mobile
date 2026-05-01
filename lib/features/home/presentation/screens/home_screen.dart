@@ -744,6 +744,43 @@ class _ReservationHighlightCardState extends State<_ReservationHighlightCard> {
     return await _reservationService.getUserReservations(user.userId);
   }
 
+  int _reservationPriority(Reservation reservation) {
+    final status = (reservation.overallStatus ?? '').toLowerCase();
+    final now = DateTime.now();
+    final end = reservation.endOfActivity;
+
+    if (end != null && now.isAfter(end.add(const Duration(hours: 24))) && status != 'returned') {
+      return 0; // overdue returning
+    }
+    if (end != null && now.isAfter(end) && now.isBefore(end.add(const Duration(hours: 24))) && status != 'returned') {
+      return 1; // to return
+    }
+    if (status == 'approved') {
+      return 2; // approved upcoming or active
+    }
+    // pending (includes pending, pending_office_approvals, etc.)
+    return 3;
+  }
+
+  int _reservationSecondarySort(Reservation reservation) {
+    final status = (reservation.overallStatus ?? '').toLowerCase();
+    final now = DateTime.now();
+    if (_reservationPriority(reservation) == 0) {
+      final deadline = reservation.endOfActivity?.add(const Duration(hours: 24));
+      return deadline?.millisecondsSinceEpoch ?? now.millisecondsSinceEpoch;
+    }
+    if (_reservationPriority(reservation) == 1) {
+      final deadline = reservation.endOfActivity?.add(const Duration(hours: 24));
+      return deadline?.millisecondsSinceEpoch ?? now.millisecondsSinceEpoch;
+    }
+    if (_reservationPriority(reservation) == 2) {
+      final start = reservation.startOfActivity ?? reservation.dateOfActivity;
+      return start?.millisecondsSinceEpoch ?? reservation.createdAt.millisecondsSinceEpoch;
+    }
+    // Pending: newest created first (smaller values = more recent = sort first)
+    return now.millisecondsSinceEpoch - reservation.createdAt.millisecondsSinceEpoch;
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Reservation>>(
@@ -775,19 +812,21 @@ class _ReservationHighlightCardState extends State<_ReservationHighlightCard> {
 
         final reservations = snapshot.data ?? [];
 
-        // Filter out cancelled / rejected / completed requests and expired events
+        // Filter out returned/cancelled/rejected/completed requests only.
+        // Keep approved events that are in the return window or overdue return.
         final activeReservations = reservations.where((r) {
           final status = (r.overallStatus ?? '').toLowerCase();
-          if (status == 'rejected' || status == 'cancelled' || status == 'completed') {
+          if (status == 'rejected' || status == 'cancelled' || status == 'completed' || status == 'returned') {
             return false;
-          }
-          if (r.endOfActivity != null) {
-            if (DateTime.now().isAfter(r.endOfActivity!)) {
-              return false;
-            }
           }
           return true;
         }).toList();
+
+        activeReservations.sort((a, b) {
+          final priorityDiff = _reservationPriority(a) - _reservationPriority(b);
+          if (priorityDiff != 0) return priorityDiff;
+          return _reservationSecondarySort(a).compareTo(_reservationSecondarySort(b));
+        });
 
         if (activeReservations.isEmpty) {
           return Container(
@@ -945,6 +984,102 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
     }
   }
 
+  String _formatDurationLabel(Duration diff) {
+    if (diff.isNegative) diff = diff.abs();
+    final days = diff.inDays;
+    final hours = diff.inHours % 24;
+    final minutes = diff.inMinutes % 60;
+    if (days > 0) return '${days}d ${hours}h';
+    if (hours > 0) return '${hours}h ${minutes}m';
+    return '${minutes}m';
+  }
+
+  bool get _hasStart => widget.reservation.startOfActivity != null;
+  bool get _hasEnd => widget.reservation.endOfActivity != null;
+  DateTime get _now => DateTime.now();
+  bool get _isReturned => (widget.reservation.overallStatus ?? '').toLowerCase() == 'returned';
+  bool get _isOverdueReturn {
+    if (!_hasEnd || _isReturned) return false;
+    return _now.isAfter(widget.reservation.endOfActivity!.add(const Duration(hours: 24)));
+  }
+
+  bool get _isToReturn {
+    if (!_hasEnd || _isReturned) return false;
+    final end = widget.reservation.endOfActivity!;
+    return _now.isAfter(end) && _now.isBefore(end.add(const Duration(hours: 24)));
+  }
+
+  bool get _isEventInProgress {
+    if (!_hasStart || !_hasEnd) return false;
+    return _now.isAfter(widget.reservation.startOfActivity!) && _now.isBefore(widget.reservation.endOfActivity!);
+  }
+
+  bool get _isEventUpcoming {
+    if (!_hasStart) return false;
+    return _now.isBefore(widget.reservation.startOfActivity!);
+  }
+
+  Widget _buildEventStatusBlock() {
+    if (!_hasStart || !_hasEnd) return const SizedBox.shrink();
+
+    String label;
+    Color backgroundColor;
+    Color textColor = const Color(0xFFF5BC1D);
+
+    if (_isOverdueReturn) {
+      final overdue = _now.difference(widget.reservation.endOfActivity!.add(const Duration(hours: 24)));
+      label = 'Overdue Returning • ${_formatDurationLabel(overdue)} late';
+      backgroundColor = const Color(0xFFEF5350);
+      textColor = Colors.white;
+    } else if (_isToReturn) {
+      final due = widget.reservation.endOfActivity!.add(const Duration(hours: 24)).difference(_now);
+      label = 'Return within 24h • ${_formatDurationLabel(due)}';
+      backgroundColor = const Color(0xFFF5BC1D);
+      textColor = Colors.black;
+    } else if (_isEventInProgress) {
+      final remaining = widget.reservation.endOfActivity!.difference(_now);
+      label = 'Event ongoing • ${_formatDurationLabel(remaining)} left';
+      backgroundColor = const Color(0xFF233B7A);
+      textColor = const Color(0xFFF5BC1D);
+    } else if (_isEventUpcoming) {
+      final untilStart = widget.reservation.startOfActivity!.difference(_now);
+      final status = (widget.reservation.overallStatus ?? '').toLowerCase() == 'pending' ? 'Pending Approval' : 'Approved';
+      label = '$status • Starts in ${_formatDurationLabel(untilStart)}';
+      backgroundColor = const Color(0xFF233B7A);
+      textColor = const Color(0xFFF5BC1D);
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _isOverdueReturn ? Icons.warning_rounded : Icons.schedule,
+            color: textColor,
+            size: 16,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Determine icon based on activity type
@@ -1098,23 +1233,7 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
             ],
           ),
           const SizedBox(height: 12),
-          // Countdown timer - only show if all 5 approvals are complete
-          FutureBuilder<_ApprovalProgress>(
-            future: _getApprovalProgress(widget.reservation.reservationId),
-            builder: (context, snapshot) {
-              final progress = snapshot.data ?? const _ApprovalProgress(completedCount: 0, totalCount: 0);
-              if (!progress.isComplete ||
-                  widget.reservation.startOfActivity == null ||
-                  widget.reservation.endOfActivity == null) {
-                return const SizedBox.shrink();
-              }
-
-              return _CountdownTimerWidget(
-                startTime: widget.reservation.startOfActivity!,
-                endTime: widget.reservation.endOfActivity!,
-              );
-            },
-          ),
+          _buildEventStatusBlock(),
         ],
       ),
     );
@@ -1125,29 +1244,37 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
   }
 
   String _getStatusLabel(String? status) {
-    switch (status) {
-      case 'pending':
-        return 'Pending Approval';
+    final normalized = (status ?? '').toLowerCase();
+    if (normalized == 'pending' || normalized.contains('pending')) {
+      return 'Pending Approval';
+    }
+    switch (normalized) {
       case 'approved':
         return 'Approved';
       case 'rejected':
         return 'Rejected';
       case 'completed':
         return 'Completed';
+      case 'returned':
+        return 'Returned';
       default:
         return status ?? 'Unknown';
     }
   }
 
   Color _getStatusColor(String? status) {
-    switch (status) {
-      case 'pending':
-        return const Color(0xFFECC67E);
+    final normalized = (status ?? '').toLowerCase();
+    if (normalized == 'pending' || normalized.contains('pending')) {
+      return const Color(0xFFECC67E);
+    }
+    switch (normalized) {
       case 'approved':
         return const Color(0xFF4CAF50);
       case 'rejected':
         return const Color(0xFFEF5350);
       case 'completed':
+        return const Color(0xFF9FD4A7);
+      case 'returned':
         return const Color(0xFF9FD4A7);
       default:
         return const Color(0xFF696969);
