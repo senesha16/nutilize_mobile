@@ -43,9 +43,7 @@ class AuthScaffold extends StatelessWidget {
                         minHeight: constraints.maxHeight,
                       ),
                       child: Align(
-                        alignment: isCompactWidth
-                            ? Alignment.topCenter
-                            : Alignment.center,
+                        alignment: Alignment.center,
                         child: Padding(
                           padding: EdgeInsets.fromLTRB(
                             16,
