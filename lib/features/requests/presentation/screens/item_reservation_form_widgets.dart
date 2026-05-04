@@ -168,6 +168,20 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
     _loadUserName();
   }
 
+  DateTime? _combineDateAndTime(DateTime? date, TimeOfDay? time) {
+    if (date == null || time == null) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  void _refreshItemsAvailability() {
+    setState(() {
+      _itemsFuture = _inventoryService.getAvailableItems(
+        startDateTime: _combineDateAndTime(_eventDate, _eventStartTime),
+        endDateTime: _combineDateAndTime(_eventDate, _eventEndTime),
+      );
+    });
+  }
+
   Future<void> _loadUserName() async {
     try {
       final authService = AuthService();
@@ -419,6 +433,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                                             );
                                             if (picked != null) {
                                               setState(() => _eventDate = picked);
+                                              _refreshItemsAvailability();
                                             }
                                           },
                                         ),
@@ -447,6 +462,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                                             );
                                             if (picked != null) {
                                               setState(() => _eventStartTime = picked);
+                                              _refreshItemsAvailability();
                                             }
                                           },
                                         ),
@@ -471,6 +487,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                                             );
                                             if (picked != null) {
                                               setState(() => _eventEndTime = picked);
+                                              _refreshItemsAvailability();
                                             }
                                           },
                                         ),

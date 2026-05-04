@@ -81,6 +81,22 @@ class _BiggerSpacesReservationFormPageState
     _loadUserName();
   }
 
+  DateTime? _combineDateAndTime(DateTime? date, TimeOfDay? time) {
+    if (date == null || time == null) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  void _refreshAvailability() {
+    final start = _combineDateAndTime(_selectedDate, _fromTime);
+    final end = _combineDateAndTime(_selectedDate, _toTime);
+    setState(() {
+      _spacesFuture = _inventoryService
+          .getAvailableRooms(startDateTime: start, endDateTime: end)
+          .then((rooms) => rooms.where((room) => _allowedSpaceTypes.contains(room.roomType)).toList());
+      _itemsFuture = _inventoryService.getAvailableItems(startDateTime: start, endDateTime: end);
+    });
+  }
+
   Future<void> _loadUserName() async {
     try {
       final currentUser = await _authService.getCurrentUser();
@@ -114,6 +130,7 @@ class _BiggerSpacesReservationFormPageState
 
     if (picked != null) {
       setState(() => _selectedDate = picked);
+      _refreshAvailability();
     }
   }
 
@@ -134,6 +151,7 @@ class _BiggerSpacesReservationFormPageState
 
     if (picked != null) {
       setState(() => _fromTime = picked);
+      _refreshAvailability();
     }
   }
 
@@ -154,6 +172,7 @@ class _BiggerSpacesReservationFormPageState
 
     if (picked != null) {
       setState(() => _toTime = picked);
+      _refreshAvailability();
     }
   }
 

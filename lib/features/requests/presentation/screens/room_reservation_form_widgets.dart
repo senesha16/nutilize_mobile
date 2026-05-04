@@ -414,6 +414,20 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
     _loadUserName();
   }
 
+  DateTime? _combineDateAndTime(DateTime? date, TimeOfDay? time) {
+    if (date == null || time == null) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  void _refreshAvailability() {
+    final start = _combineDateAndTime(_eventDate, _eventStartTime);
+    final end = _combineDateAndTime(_eventDate, _eventEndTime);
+    setState(() {
+      _roomsFuture = _inventoryService.getAvailableRooms(startDateTime: start, endDateTime: end);
+      _itemsFuture = _inventoryService.getAvailableItems(startDateTime: start, endDateTime: end);
+    });
+  }
+
   Future<void> _loadUserName() async {
     try {
       final authService = AuthService();
@@ -678,6 +692,8 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                             if (step == 4)
                               _PeripheralsFormFields(
                                 selectedItemIds: _selectedItemIds,
+                                startDateTime: _combineDateAndTime(_eventDate, _eventStartTime),
+                                endDateTime: _combineDateAndTime(_eventDate, _eventEndTime),
                                 onItemsChanged: (items) {
                                   setState(() {
                                     _selectedItemIds.clear();
@@ -709,6 +725,8 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                                 chairQuantityRange: _chairQuantityRange,
                                 tableType: _tableType,
                                 tableQuantity: _tableQuantity,
+                                startDateTime: _combineDateAndTime(_eventDate, _eventStartTime),
+                                endDateTime: _combineDateAndTime(_eventDate, _eventEndTime),
                                 onSelectedRoomIdsChanged: (ids) {
                                   setState(() {
                                     _selectedRoomIds.clear();
@@ -741,12 +759,15 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                                 },
                                 onDateChanged: (date) {
                                   setState(() => _eventDate = date);
+                                  _refreshAvailability();
                                 },
                                 onFromTimeChanged: (time) {
                                   setState(() => _eventStartTime = time);
+                                  _refreshAvailability();
                                 },
                                 onToTimeChanged: (time) {
                                   setState(() => _eventEndTime = time);
+                                  _refreshAvailability();
                                 },
                               ),
                             const SizedBox(height: 24),
@@ -823,12 +844,16 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
 
 class _PeripheralsFormFields extends StatefulWidget {
   final Set<int> selectedItemIds;
+  final DateTime? startDateTime;
+  final DateTime? endDateTime;
   final Function(Set<int>)? onItemsChanged;
   final Function(Map<int, int>)? onQuantitiesChanged;
   final Function(bool)? onNoNeedChanged;
 
   const _PeripheralsFormFields({
     required this.selectedItemIds,
+    this.startDateTime,
+    this.endDateTime,
     this.onItemsChanged,
     this.onQuantitiesChanged,
     this.onNoNeedChanged,
@@ -850,7 +875,7 @@ class _PeripheralsFormFieldsState extends State<_PeripheralsFormFields> {
   @override
   void initState() {
     super.initState();
-    _itemsFuture = _inventoryService.getAvailableItems();
+    _loadItems();
     _localSelectedIds = Set.from(widget.selectedItemIds);
   }
 
@@ -860,6 +885,16 @@ class _PeripheralsFormFieldsState extends State<_PeripheralsFormFields> {
     if (!setEquals(_localSelectedIds, widget.selectedItemIds)) {
       _localSelectedIds = Set.from(widget.selectedItemIds);
     }
+    if (oldWidget.startDateTime != widget.startDateTime || oldWidget.endDateTime != widget.endDateTime) {
+      _loadItems();
+    }
+  }
+
+  void _loadItems() {
+    _itemsFuture = _inventoryService.getAvailableItems(
+      startDateTime: widget.startDateTime,
+      endDateTime: widget.endDateTime,
+    );
   }
 
   int _countSelected(List<Item> items) =>
@@ -1143,6 +1178,8 @@ class _RoomSuggestionsList extends StatefulWidget {
   final String? chairQuantityRange;
   final String? tableType;
   final String tableQuantity;
+  final DateTime? startDateTime;
+  final DateTime? endDateTime;
   final Function(Set<int>)? onSelectedRoomIdsChanged;
   
   const _RoomSuggestionsList({
@@ -1152,6 +1189,8 @@ class _RoomSuggestionsList extends StatefulWidget {
     this.chairQuantityRange,
     this.tableType,
     required this.tableQuantity,
+    this.startDateTime,
+    this.endDateTime,
     this.onSelectedRoomIdsChanged,
   });
 
@@ -1167,7 +1206,7 @@ class _RoomSuggestionsListState extends State<_RoomSuggestionsList> {
   @override
   void initState() {
     super.initState();
-    _roomsFuture = _inventoryService.getAvailableRooms();
+    _loadRooms();
     _localSelectedRoomIds = Set.from(widget.selectedRoomIds);
   }
 
@@ -1177,6 +1216,16 @@ class _RoomSuggestionsListState extends State<_RoomSuggestionsList> {
     if (!setEquals(oldWidget.selectedRoomIds, widget.selectedRoomIds)) {
       _localSelectedRoomIds = Set.from(widget.selectedRoomIds);
     }
+    if (oldWidget.startDateTime != widget.startDateTime || oldWidget.endDateTime != widget.endDateTime) {
+      _loadRooms();
+    }
+  }
+
+  void _loadRooms() {
+    _roomsFuture = _inventoryService.getAvailableRooms(
+      startDateTime: widget.startDateTime,
+      endDateTime: widget.endDateTime,
+    );
   }
 
   int _getMinCapacityFromAttendance(String? attendance) {
