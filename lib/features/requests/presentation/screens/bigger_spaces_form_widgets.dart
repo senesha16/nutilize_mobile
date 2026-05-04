@@ -72,11 +72,7 @@ class _BiggerSpacesReservationFormPageState
   @override
   void initState() {
     super.initState();
-    _spacesFuture = _inventoryService.getAvailableRooms().then((rooms) {
-      return rooms
-          .where((room) => _allowedSpaceTypes.contains(room.roomType))
-          .toList();
-    });
+    _spacesFuture = Future.value(<Room>[]);
     _itemsFuture = _inventoryService.getAvailableItems();
     _loadUserName();
   }
@@ -90,11 +86,33 @@ class _BiggerSpacesReservationFormPageState
     final start = _combineDateAndTime(_selectedDate, _fromTime);
     final end = _combineDateAndTime(_selectedDate, _toTime);
     setState(() {
-      _spacesFuture = _inventoryService
-          .getAvailableRooms(startDateTime: start, endDateTime: end)
-          .then((rooms) => rooms.where((room) => _allowedSpaceTypes.contains(room.roomType)).toList());
+      if (start == null || end == null || !start.isBefore(end)) {
+        _spacesFuture = Future.value(<Room>[]);
+      } else {
+        _spacesFuture = _inventoryService
+            .getAvailableRooms(startDateTime: start, endDateTime: end)
+            .then((rooms) => rooms.where((room) => _allowedSpaceTypes.contains(room.roomType)).toList());
+      }
       _itemsFuture = _inventoryService.getAvailableItems(startDateTime: start, endDateTime: end);
     });
+  }
+
+  Future<bool> _isSelectedSpaceStillAvailable() async {
+    if (_selectedSpace == null || _selectedDate == null || _fromTime == null || _toTime == null) {
+      return false;
+    }
+
+    final start = _combineDateAndTime(_selectedDate, _fromTime);
+    final end = _combineDateAndTime(_selectedDate, _toTime);
+    if (start == null || end == null || !start.isBefore(end)) {
+      return false;
+    }
+
+    final spaces = await _inventoryService
+        .getAvailableRooms(startDateTime: start, endDateTime: end)
+        .then((rooms) => rooms.where((room) => _allowedSpaceTypes.contains(room.roomType)).toList());
+
+    return spaces.any((room) => room.roomId == _selectedSpace!.roomId);
   }
 
   Future<void> _loadUserName() async {
@@ -198,6 +216,15 @@ class _BiggerSpacesReservationFormPageState
       return;
     }
 
+    final start = _combineDateAndTime(_selectedDate, _fromTime);
+    final end = _combineDateAndTime(_selectedDate, _toTime);
+    if (start == null || end == null || !start.isBefore(end)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('End time must be later than start time')),
+      );
+      return;
+    }
+
     if (_selectedSpace == null) {
       ScaffoldMessenger.of(
         context,
@@ -232,6 +259,24 @@ class _BiggerSpacesReservationFormPageState
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('You have overdue items to return. Please return your items first before making new reservations.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final isStillAvailable = await _isSelectedSpaceStillAvailable();
+      if (!isStillAvailable) {
+        if (mounted) {
+          setState(() {
+            _selectedSpace = null;
+            _currentStep = 1;
+          });
+          _refreshAvailability();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('That bigger space is no longer available for the selected time. Please choose another one.'),
               backgroundColor: Colors.red,
             ),
           );
@@ -597,6 +642,9 @@ class _BiggerSpacesReservationFormPageState
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
         ),
         const SizedBox(height: 12),
+        if (_selectedDate == null || _fromTime == null || _toTime == null)
+          const Text('Select date and both start/end times first to load available spaces.')
+        else
         FutureBuilder<List<Room>>(
           future: _spacesFuture,
           builder: (context, snapshot) {
