@@ -271,8 +271,6 @@ class _AccountView extends StatelessWidget {
                         },
                       ),
                       const SizedBox(height: 18),
-                      _SettingsTile(),
-                      const SizedBox(height: 18),
                       _LogoutButton(
                         onPressed: isLoggedIn ? onLogout : null,
                       ),
@@ -389,56 +387,6 @@ class _NavTile extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-    );
-  }
-}
-
-class _SettingsTile extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFF6F7FB),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: SwitchListTile(
-            value: false,
-            onChanged: (v) {},
-            title: const Text(
-              'Dark Mode',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-            ),
-            secondary: const Icon(
-              Icons.nightlight_round,
-              color: Color(0xFF5664AE),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        _NavTile(
-          icon: Icons.privacy_tip_rounded,
-          label: 'Privacy and Security',
-          onTap: () {},
-        ),
-        _NavTile(
-          icon: Icons.info_rounded,
-          label: 'About NUtilize',
-          onTap: () {},
-        ),
-      ],
     );
   }
 }
@@ -942,7 +890,7 @@ class _ReservationListPageState extends State<_ReservationListPage> {
       case _ReservationFilter.pendingOnly:
         return status == 'pending' || status.isEmpty;
       case _ReservationFilter.history:
-        if (status == 'rejected' || status == 'completed' || status == 'cancelled') return true;
+        if (status == 'rejected' || status == 'completed' || status == 'cancelled' || status == 'not_endorsed') return true;
         if (endDate != null && now.isAfter(endDate)) return true;
         return false;
     }
@@ -966,6 +914,8 @@ class _ReservationListPageState extends State<_ReservationListPage> {
         return const Color(0xFFF1B60D);
       case 'rejected':
         return const Color(0xFFE74C3C);
+      case 'not_endorsed':
+        return const Color(0xFFB33131);
       case 'completed':
         return const Color(0xFF5664AE);
       case 'cancelled':

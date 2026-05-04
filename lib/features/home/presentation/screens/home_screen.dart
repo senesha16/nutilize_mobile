@@ -37,6 +37,8 @@ class _HomeMobileViewState extends State<_HomeMobileView>
     with WidgetsBindingObserver {
   final GlobalKey<_ReservationHighlightCardState> _reservationKey =
       GlobalKey<_ReservationHighlightCardState>();
+  final GlobalKey<_RecentActivitySectionState> _recentActivityKey =
+      GlobalKey<_RecentActivitySectionState>();
 
   @override
   void initState() {
@@ -53,12 +55,13 @@ class _HomeMobileViewState extends State<_HomeMobileView>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _reservationKey.currentState?.refreshReservations();
+      refreshReservations();
     }
   }
 
   void refreshReservations() {
     _reservationKey.currentState?.refreshReservations();
+    _recentActivityKey.currentState?.refreshRecentActivity();
   }
 
   @override
@@ -78,32 +81,7 @@ class _HomeMobileViewState extends State<_HomeMobileView>
                   const SizedBox(height: 14),
                   _ReservationHighlightCard(key: _reservationKey),
                   const SizedBox(height: 14),
-                  const Text(
-                    'Recent Activity',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF151515),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const _ActivityCard(
-                    icon: Icons.meeting_room_outlined,
-                    title: 'Room 531',
-                    subtitle: 'Organizational Meeting',
-                  ),
-                  const SizedBox(height: 10),
-                  const _ActivityCard(
-                    icon: Icons.tv,
-                    title: 'NU Lipa TV',
-                    subtitle: 'Organizational Meeting',
-                  ),
-                  const SizedBox(height: 10),
-                  const _ActivityCard(
-                    icon: Icons.kitchen_outlined,
-                    title: 'Room 533',
-                    subtitle: 'Cooking Mama Tournament',
-                  ),
+                  _RecentActivitySection(key: _recentActivityKey),
                 ],
               ),
             ),
@@ -708,6 +686,204 @@ class _ActivityCard extends StatelessWidget {
   }
 }
 
+class _RecentActivitySection extends StatefulWidget {
+  const _RecentActivitySection({super.key});
+
+  @override
+  State<_RecentActivitySection> createState() => _RecentActivitySectionState();
+}
+
+class _RecentActivitySectionState extends State<_RecentActivitySection> {
+  final _authService = AuthService();
+  final _reservationService = ReservationService();
+  late Future<List<_RecentActivityItem>> _recentActivityFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecentActivity();
+  }
+
+  void refreshRecentActivity() {
+    setState(_loadRecentActivity);
+  }
+
+  void _loadRecentActivity() {
+    _recentActivityFuture = _fetchRecentActivity();
+  }
+
+  Future<List<_RecentActivityItem>> _fetchRecentActivity() async {
+    final user = await _authService.getCurrentUser();
+    if (user == null) return [];
+
+    final reservations = await _reservationService.getUserReservations(user.userId);
+    final finishedReservations = reservations.where((reservation) {
+      final status = (reservation.overallStatus ?? '').toLowerCase();
+      return status == 'returned';
+    }).toList()
+      ..sort((a, b) {
+        final aDate = a.updatedAt ?? a.createdAt;
+        final bDate = b.updatedAt ?? b.createdAt;
+        return bDate.compareTo(aDate);
+      });
+
+    final visibleReservations = finishedReservations.take(3).toList();
+    final items = <_RecentActivityItem>[];
+
+    for (final reservation in visibleReservations) {
+      final rooms = await _reservationService.getReservationRooms(reservation.reservationId);
+      final borrowedItems = await _reservationService.getReservationItems(reservation.reservationId);
+
+      items.add(
+        _RecentActivityItem(
+          icon: _iconForReservation(rooms, borrowedItems),
+          title: reservation.activityName,
+          subtitle: _buildSubtitle(reservation, rooms, borrowedItems),
+        ),
+      );
+    }
+
+    return items;
+  }
+
+  IconData _iconForReservation(
+    List<BorrowedRoom> rooms,
+    List<BorrowedItem> items,
+  ) {
+    if (rooms.isNotEmpty) {
+      return Icons.meeting_room_outlined;
+    }
+    if (items.isNotEmpty) {
+      return Icons.inventory_2_outlined;
+    }
+    return Icons.history_rounded;
+  }
+
+  String _buildSubtitle(
+    Reservation reservation,
+    List<BorrowedRoom> rooms,
+    List<BorrowedItem> items,
+  ) {
+    final returnedAt = _formatDate(reservation.updatedAt ?? reservation.createdAt);
+    if (rooms.isNotEmpty) {
+      return 'Returned on $returnedAt • ${rooms.first.roomNumber}';
+    }
+    if (items.isNotEmpty) {
+      final totalQuantity = items.fold<int>(0, (sum, item) => sum + item.quantity);
+      return 'Returned on $returnedAt • $totalQuantity item${totalQuantity == 1 ? '' : 's'}';
+    }
+    return 'Returned on $returnedAt';
+  }
+
+  String _formatDate(DateTime dateTime) {
+    const months = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final month = months[dateTime.month];
+    return '$month ${dateTime.day}, ${dateTime.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<_RecentActivityItem>>(
+      future: _recentActivityFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6E8F2),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Text(
+              'Unable to load recent activity.',
+              style: TextStyle(color: Color(0xFF696969)),
+            ),
+          );
+        }
+
+        final recentActivity = snapshot.data ?? [];
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Recent Activity',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF151515),
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (recentActivity.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6E8F2),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Text(
+                  'No finished requests yet.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF696969),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              )
+            else
+              ...recentActivity
+                  .map(
+                    (activity) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _ActivityCard(
+                        icon: activity.icon,
+                        title: activity.title,
+                        subtitle: activity.subtitle,
+                      ),
+                    ),
+                  )
+                  .toList(),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RecentActivityItem {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  _RecentActivityItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+}
+
 class _ReservationHighlightCard extends StatefulWidget {
   const _ReservationHighlightCard({super.key});
 
@@ -816,7 +992,7 @@ class _ReservationHighlightCardState extends State<_ReservationHighlightCard> {
         // Keep approved events that are in the return window or overdue return.
         final activeReservations = reservations.where((r) {
           final status = (r.overallStatus ?? '').toLowerCase();
-          if (status == 'rejected' || status == 'cancelled' || status == 'completed' || status == 'returned') {
+          if (status == 'rejected' || status == 'cancelled' || status == 'completed' || status == 'returned' || status == 'not_endorsed') {
             return false;
           }
           return true;
@@ -1253,6 +1429,8 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
         return 'Approved';
       case 'rejected':
         return 'Rejected';
+      case 'not_endorsed':
+        return 'Not fully endorsed';
       case 'completed':
         return 'Completed';
       case 'returned':
@@ -1272,6 +1450,8 @@ class _ReservationCardWidgetState extends State<_ReservationCardWidget> {
         return const Color(0xFF4CAF50);
       case 'rejected':
         return const Color(0xFFEF5350);
+      case 'not_endorsed':
+        return const Color(0xFFB33131);
       case 'completed':
         return const Color(0xFF9FD4A7);
       case 'returned':

@@ -678,28 +678,48 @@ class _ReservationStatusDialogContentState
                                   ),
                                 if (canCancel) const SizedBox(width: 12),
                                 Expanded(
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF233B7A),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(vertical: 14),
-                                    ),
-                                    onPressed: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (_) => ReportIssuePage(
-                                            reservationId: widget.reservationId,
+                                  child: Builder(builder: (context) {
+                                    final isApproved = (reservation?.overallStatus ?? '').toLowerCase() == 'approved';
+                                    if (!isApproved) {
+                                      return ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.grey.shade400,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
                                           ),
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                        ),
+                                        onPressed: null,
+                                        child: const Text(
+                                          'Issue report',
+                                          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey),
                                         ),
                                       );
-                                    },
-                                    child: const Text(
-                                      'Issue report',
-                                      style: TextStyle(fontWeight: FontWeight.w600),
-                                    ),
-                                  ),
+                                    }
+
+                                    return ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF233B7A),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(vertical: 14),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => ReportIssuePage(
+                                              reservationId: widget.reservationId,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: const Text(
+                                        'Issue report',
+                                        style: TextStyle(fontWeight: FontWeight.w600),
+                                      ),
+                                    );
+                                  }),
                                 ),
                               ],
                             ),
@@ -813,20 +833,40 @@ class _ReservationStatusDialogContentState
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF233B7A),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
+                                  child: Builder(builder: (context) {
+                                    final isApproved = (reservation?.overallStatus ?? '').toLowerCase() == 'approved';
+                                    if (!isApproved) {
+                                      return ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.grey.shade400,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                        ),
+                                        onPressed: null,
+                                        child: const Text(
+                                          'Print',
+                                          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey),
+                                        ),
+                                      );
+                                    }
+
+                                    return ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF233B7A),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(vertical: 14),
                                       ),
-                                      padding: const EdgeInsets.symmetric(vertical: 14),
-                                    ),
-                                    onPressed: _generateAndPrintPDF,
-                                    child: const Text(
-                                      'Print',
-                                      style: TextStyle(fontWeight: FontWeight.w600),
-                                    ),
-                                  ),
+                                      onPressed: _generateAndPrintPDF,
+                                      child: const Text(
+                                        'Print',
+                                        style: TextStyle(fontWeight: FontWeight.w600),
+                                      ),
+                                    );
+                                  }),
                                 ),
                               ],
                             ),

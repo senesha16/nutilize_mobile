@@ -80,6 +80,39 @@ class NotificationService extends ChangeNotifier {
         _seenApprovalKeys.add(dedupeKey);
         newNotifications.add(newItem);
       }
+      // If the reservation has not been approved by its start time, mark it as not_endorsed
+      // and notify the user. Use startOfActivity if present, otherwise dateOfActivity.
+      final status = (reservation.overallStatus ?? '').toString().toLowerCase();
+      if (status != 'approved' && status != 'rejected' && status != 'cancelled' && status != 'completed' && status != 'returned') {
+        final referenceDate = reservation.startOfActivity ?? reservation.dateOfActivity;
+        if (referenceDate != null) {
+          final now = DateTime.now();
+          if (now.isAfter(referenceDate)) {
+            final dedupeKey = 'not_endorsed:${reservation.reservationId}';
+            if (!_seenApprovalKeys.contains(dedupeKey)) {
+              // Update reservation status server-side to ensure it disappears from active lists
+              try {
+                await _reservationService.updateReservationStatus(reservation.reservationId, 'not_endorsed');
+              } catch (_) {
+                // Ignore failures to update; still create a client notification
+              }
+
+              final newItem = AppNotification(
+                id: '$dedupeKey:${DateTime.now().millisecondsSinceEpoch}',
+                title: 'Reservation Not Fully Endorsed',
+                message: '${reservation.activityName} did not receive full approvals before its start time.',
+                type: 'not_endorsed',
+                reservationId: reservation.reservationId,
+                createdAt: DateTime.now(),
+                isRead: false,
+              );
+
+              _seenApprovalKeys.add(dedupeKey);
+              newNotifications.add(newItem);
+            }
+          }
+        }
+      }
     }
 
     if (newNotifications.isEmpty) {

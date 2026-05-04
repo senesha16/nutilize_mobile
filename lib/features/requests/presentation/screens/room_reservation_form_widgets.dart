@@ -736,6 +736,10 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                               )
                             else if (step == 2)
                               _ReservationDetailsFormFields(
+                                initialRoomType: _selectedRoomType,
+                                initialChairQuantityRange: _chairQuantityRange,
+                                initialCustomChairCount: _customChairExtraCount,
+                                initialTableType: _tableType,
                                 onRoomTypeChanged: (roomType) {
                                   setState(() => _selectedRoomType = roomType);
                                 },
@@ -751,6 +755,11 @@ class _RoomReservationFormPageState extends State<RoomReservationFormPage> {
                               )
                             else
                               _ReservationFormFields(
+                                initialActivityName: _activityName,
+                                initialAttendance: _selectedAttendance,
+                                initialDate: _eventDate,
+                                initialFromTime: _eventStartTime,
+                                initialToTime: _eventEndTime,
                                 onActivityNameChanged: (name) {
                                   setState(() => _activityName = name);
                                 },
@@ -927,6 +936,12 @@ class _PeripheralsFormFieldsState extends State<_PeripheralsFormFields> {
         }
 
         final allItems = snapshot.data ?? [];
+        if (kDebugMode) {
+          debugPrint('[_PeripheralsFormFields] loaded ${allItems.length} items for start=${widget.startDateTime} end=${widget.endDateTime}');
+          for (final it in allItems) {
+            debugPrint('  item ${it.itemId} ${it.itemName} total=${it.quantityTotal} reserved=${it.quantityReserved} avail=${it.availableQuantity}');
+          }
+        }
 
         final itemsByCategory = <String, List<Item>>{};
         for (var item in allItems) {
@@ -1444,12 +1459,20 @@ class _RoomSuggestionsListState extends State<_RoomSuggestionsList> {
 // ==================== Remaining unchanged classes ====================
 
 class _ReservationDetailsFormFields extends StatefulWidget {
+  final String? initialRoomType;
+  final String? initialChairQuantityRange;
+  final int? initialCustomChairCount;
+  final String? initialTableType;
   final Function(String?)? onRoomTypeChanged;
   final Function(String?)? onChairQuantityChanged;
   final Function(int?)? onCustomChairCountChanged;
   final Function(String?)? onTableTypeChanged;
 
   const _ReservationDetailsFormFields({
+    this.initialRoomType,
+    this.initialChairQuantityRange,
+    this.initialCustomChairCount,
+    this.initialTableType,
     this.onRoomTypeChanged,
     this.onChairQuantityChanged,
     this.onCustomChairCountChanged,
@@ -1471,7 +1494,14 @@ class _ReservationDetailsFormFieldsState extends State<_ReservationDetailsFormFi
   @override
   void initState() {
     super.initState();
-    // Classroom is the default and only option
+    _roomType = widget.initialRoomType ?? 'Classroom';
+    _chairQuantityRange = widget.initialChairQuantityRange;
+    _tableType = widget.initialTableType;
+    _customChairCount = widget.initialCustomChairCount;
+
+    if (_customChairCount != null && _customChairCount! > 0) {
+      _customChairCountController.text = _customChairCount.toString();
+    }
   }
 
   @override
@@ -1639,6 +1669,11 @@ class _ReservationDetailsFormFieldsState extends State<_ReservationDetailsFormFi
 }
 
 class _ReservationFormFields extends StatefulWidget {
+  final String? initialActivityName;
+  final String? initialAttendance;
+  final DateTime? initialDate;
+  final TimeOfDay? initialFromTime;
+  final TimeOfDay? initialToTime;
   final Function(String)? onActivityNameChanged;
   final Function(String)? onAttendanceChanged;
   final Function(DateTime)? onDateChanged;
@@ -1646,6 +1681,11 @@ class _ReservationFormFields extends StatefulWidget {
   final Function(TimeOfDay)? onToTimeChanged;
 
   const _ReservationFormFields({
+    this.initialActivityName,
+    this.initialAttendance,
+    this.initialDate,
+    this.initialFromTime,
+    this.initialToTime,
     this.onActivityNameChanged,
     this.onAttendanceChanged,
     this.onDateChanged,
@@ -1665,6 +1705,16 @@ class _ReservationFormFieldsState extends State<_ReservationFormFields> {
   String? _attendance;
 
   final List<String> _attendanceOptions = ['1-10', '11-20', '21-50', '51-100', '100+'];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController.text = widget.initialActivityName ?? '';
+    _selectedDate = widget.initialDate;
+    _fromTime = widget.initialFromTime;
+    _toTime = widget.initialToTime;
+    _attendance = widget.initialAttendance;
+  }
 
   @override
   void dispose() {

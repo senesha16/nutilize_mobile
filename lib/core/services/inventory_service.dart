@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:nutilize/core/models/room.dart';
 import 'package:nutilize/core/models/item.dart';
 
@@ -20,8 +21,11 @@ class InventoryService {
           .eq('availability_status', true)
           .eq('maintenance_status', false);
 
-      return (response as List)
+      final rooms = (response as List)
           .map((json) => Room.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      return rooms
           .where((room) => !reservedRoomIds.contains(room.roomId))
           .toList();
     } catch (e) {
@@ -32,41 +36,41 @@ class InventoryService {
   Future<Set<int>> _getReservedRoomIds({DateTime? startDateTime, DateTime? endDateTime}) async {
     try {
       final response = await _supabase
-          .from('reservation_details')
-          .select('reservation_rooms!inner(room_id), reservations!inner(overall_status, Date_of_Activity, Start_of_activity, End_of_Activity)')
-          .not('reservation_rooms_id', 'is', null);
+          .from('v_reservation_rooms_details')
+          .select();
 
       final reservedRoomIds = <int>{};
       for (final raw in response as List) {
         final detail = raw as Map<String, dynamic>;
-        final reservationData = detail['reservations'];
-        if (reservationData is! Map<String, dynamic>) {
+        final status = detail['overall_status']?.toString().toLowerCase();
+
+        if (_isTerminalReservationStatus(status)) {
           continue;
         }
 
-        final status = reservationData['overall_status']?.toString().toLowerCase();
-
-        if (status == null || status == 'rejected' || status == 'completed' || status == 'cancelled') {
-          continue;
-        }
-
+        final reservationStart = _parseDateTimeValue(
+          _readAny(detail, ['Start_of_activity', 'start_of_activity']),
+        );
+        final reservationEnd = _parseDateTimeValue(
+          _readAny(detail, ['End_of_Activity', 'end_of_activity']),
+        );
+        
         if (startDateTime != null && endDateTime != null) {
-          final overlaps = _reservationOverlapsWindow(
-            reservationData,
-            startDateTime: startDateTime,
-            endDateTime: endDateTime,
-          );
-          if (!overlaps) {
-            continue; // No overlap, skip this reservation
+          if (reservationStart != null && reservationEnd != null &&
+              startDateTime.isBefore(reservationEnd) && reservationStart.isBefore(endDateTime)) {
+            // Overlap detected, add room to blocked set
+            final roomId = _toInt(detail['room_id']);
+            if (roomId != null) {
+              reservedRoomIds.add(roomId);
+            }
           }
-          // If we reach here, there IS an overlap, so add the room to blocked set
-          final roomInfo = detail['reservation_rooms'] as Map<String, dynamic>?;
-          final roomId = roomInfo?['room_id'] as int?;
+        } else {
+          // No time window specified, count all active reservations
+          final roomId = _toInt(detail['room_id']);
           if (roomId != null) {
             reservedRoomIds.add(roomId);
           }
         }
-        // If startDateTime/endDateTime are null, don't block any rooms
       }
 
       return reservedRoomIds;
@@ -99,14 +103,30 @@ class InventoryService {
             'item_id, owner_id, item_name, maintenance_status, availability_status, quantity_total, date_reserved, created_at, updated_at, category_id, item_categories(category_id, category_key, display_name)',
           );
 
-      final reservedQuantities = await _getReservedQuantities(
+      // Compute reserved quantities for the requested window and for all active
+      // reservations (global). We merge them using the larger value so Phase 4
+      // reflects cross-account reserved counts (fallback to global when needed).
+      final windowFuture = _getReservedQuantities(
         startDateTime: startDateTime,
         endDateTime: endDateTime,
       );
+      final globalFuture = _getReservedQuantities();
+
+      final results = await Future.wait([windowFuture, globalFuture]);
+      final Map<int, int> windowReserved = results[0] as Map<int, int>;
+      final Map<int, int> globalReserved = results[1] as Map<int, int>;
+
+      if (kDebugMode) {
+        debugPrint('[InventoryService] getAvailableItems start=$startDateTime end=$endDateTime windowReserved=${windowReserved} globalReserved=${globalReserved}');
+      }
+
       return (response as List)
           .map((json) {
             final item = Item.fromJson(json as Map<String, dynamic>);
-            return item.copyWith(quantityReserved: reservedQuantities[item.itemId] ?? 0);
+            final w = windowReserved[item.itemId] ?? 0;
+            final g = globalReserved[item.itemId] ?? 0;
+            final merged = w >= g ? w : g;
+            return item.copyWith(quantityReserved: merged);
           })
           .toList();
     } catch (e) {
@@ -117,37 +137,39 @@ class InventoryService {
   Future<Map<int, int>> _getReservedQuantities({DateTime? startDateTime, DateTime? endDateTime}) async {
     try {
       final response = await _supabase
-          .from('reservation_details')
-          .select('quantity, reservation_items!inner(item_id), reservations!inner(overall_status, Date_of_Activity, Start_of_activity, End_of_Activity)');
+          .from('v_reservation_items_details')
+          .select();
 
       final reservedQuantities = <int, int>{};
       for (final raw in response as List) {
         final detail = raw as Map<String, dynamic>;
-        final reservationData = detail['reservations'];
-        if (reservationData is! Map<String, dynamic>) {
+        final status = detail['overall_status']?.toString().toLowerCase();
+        if (_isTerminalReservationStatus(status)) {
           continue;
         }
 
-        final status = reservationData['overall_status']?.toString().toLowerCase();
-        if (status == null || status == 'rejected' || status == 'completed' || status == 'cancelled') {
-          continue;
-        }
-
+        final reservationStart = _parseDateTimeValue(
+          _readAny(detail, ['Start_of_activity', 'start_of_activity']),
+        );
+        final reservationEnd = _parseDateTimeValue(
+          _readAny(detail, ['End_of_Activity', 'end_of_activity']),
+        );
+        
         if (startDateTime != null && endDateTime != null) {
-          final overlaps = _reservationOverlapsWindow(
-            reservationData,
-            startDateTime: startDateTime,
-            endDateTime: endDateTime,
-          );
-          if (!overlaps) {
-            continue; // No overlap, skip this reservation
+          if (reservationStart != null && reservationEnd != null &&
+              startDateTime.isBefore(reservationEnd) && reservationStart.isBefore(endDateTime)) {
+            // Overlap detected, add quantity
+            _addQuantityForDetail(detail, reservedQuantities);
           }
-          // If we reach here, there IS an overlap, so add the item quantity
+        } else {
+          // No time window specified, count all active reservations
           _addQuantityForDetail(detail, reservedQuantities);
         }
-        // If startDateTime/endDateTime are null, don't block any item quantities
       }
 
+      if (kDebugMode) {
+        debugPrint('[InventoryService] _getReservedQuantities computed=${reservedQuantities} for start=$startDateTime end=$endDateTime');
+      }
       return reservedQuantities;
     } catch (e) {
       throw Exception('Failed to fetch reserved item quantities: $e');
@@ -155,8 +177,7 @@ class InventoryService {
   }
 
   void _addQuantityForDetail(Map<String, dynamic> detail, Map<int, int> reservedQuantities) {
-    final itemInfo = detail['reservation_items'] as Map<String, dynamic>?;
-    final itemId = itemInfo?['item_id'] as int?;
+    final itemId = _toInt(detail['item_id']);
     final quantityRaw = detail['quantity'];
     final quantity = quantityRaw is int
         ? quantityRaw
@@ -199,6 +220,37 @@ class InventoryService {
     }
 
     return DateTime.tryParse(value.toString());
+  }
+
+  dynamic _readAny(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      if (data.containsKey(key)) {
+        return data[key];
+      }
+    }
+    return null;
+  }
+
+  int? _toInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  bool _isTerminalReservationStatus(String? status) {
+    if (status == null || status.trim().isEmpty) {
+      // Null/empty status means request is still active in workflow; keep blocking.
+      return false;
+    }
+
+    return status == 'rejected' ||
+        status == 'completed' ||
+        status == 'cancelled' ||
+        status == 'returned';
   }
 
   bool _sameCalendarDate(DateTime a, DateTime b) {

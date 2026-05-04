@@ -44,6 +44,7 @@ class _BiggerSpacesReservationFormPageState
   final _inventoryService = InventoryService();
   final _reservationService = ReservationService();
   final _authService = AuthService();
+  final TextEditingController _activityNameController = TextEditingController();
 
   late Future<List<Room>> _spacesFuture;
   late Future<List<Item>> _itemsFuture;
@@ -74,7 +75,14 @@ class _BiggerSpacesReservationFormPageState
     super.initState();
     _spacesFuture = Future.value(<Room>[]);
     _itemsFuture = _inventoryService.getAvailableItems();
+    _activityNameController.text = _activityName;
     _loadUserName();
+  }
+
+  @override
+  void dispose() {
+    _activityNameController.dispose();
+    super.dispose();
   }
 
   DateTime? _combineDateAndTime(DateTime? date, TimeOfDay? time) {
@@ -544,6 +552,7 @@ class _BiggerSpacesReservationFormPageState
         const Text('Title of activity:'),
         const SizedBox(height: 6),
         TextField(
+          controller: _activityNameController,
           onChanged: (value) => setState(() => _activityName = value),
           decoration: InputDecoration(
             hintText: 'Enter title of activity',

@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 class ReportTarget {
   final int? roomId;
@@ -47,22 +49,42 @@ class ReportService {
     required List<ReportTarget> targets,
     required String description,
     required List<String> proofImagePaths,
+    required List<File> imageFiles,
     int? reservationId,
   }) async {
     if (targets.isEmpty) {
       throw Exception('Please select at least one target to report.');
     }
-    if (proofImagePaths.isEmpty) {
+    if (proofImagePaths.isEmpty || imageFiles.isEmpty) {
       throw Exception('Please upload at least one proof photo.');
     }
 
     final now = DateTime.now().toIso8601String();
-    final primaryProofImage = proofImagePaths.first;
+
+    // Upload images to Supabase and get public URLs
+    final uploadedImageUrls = <String>[];
+    for (int i = 0; i < imageFiles.length; i++) {
+      try {
+        final url = await _uploadImageToSupabase(
+          imageFile: imageFiles[i],
+          index: i,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        );
+        uploadedImageUrls.add(url);
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[ReportService] Failed to upload image $i: $e');
+        }
+        throw Exception('Failed to upload image ${i + 1}: $e');
+      }
+    }
+
+    final primaryProofImage = uploadedImageUrls.first;
 
     final payload = jsonEncode({
       'description': description,
       'proof_image_url': primaryProofImage,
-      'proof_image_urls': proofImagePaths,
+      'proof_image_urls': uploadedImageUrls,
       'reservation_id': reservationId,
       'submitted_at': now,
       'target_count': targets.length,
@@ -71,7 +93,7 @@ class ReportService {
     final legacyReportInfo = _buildLegacyReportInfo(
       description: description,
       targetCount: targets.length,
-      imageCount: proofImagePaths.length,
+      imageCount: uploadedImageUrls.length,
       reservationId: reservationId,
     );
 
@@ -116,6 +138,41 @@ class ReportService {
     } catch (e) {
       // Best-effort rollback to avoid orphaned parent reports.
       await _supabase.from('reports').delete().eq('report_id', reportId);
+      rethrow;
+    }
+  }
+
+  Future<String> _uploadImageToSupabase({
+    required File imageFile,
+    required int index,
+    required int timestamp,
+  }) async {
+    try {
+      // Generate a unique filename
+      final filename = 'report_${timestamp}_$index.jpg';
+
+      // Upload file to 'assets' bucket
+      await _supabase.storage.from('assets').upload(
+        'issues/$filename',
+        imageFile,
+        fileOptions: const FileOptions(
+          cacheControl: '3600',
+          upsert: false,
+        ),
+      );
+
+      // Get public URL for the uploaded file
+      final publicUrl = _supabase.storage.from('assets').getPublicUrl('issues/$filename');
+
+      if (kDebugMode) {
+        debugPrint('[ReportService] Uploaded image: $publicUrl');
+      }
+
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ReportService] Upload error: $e');
+      }
       rethrow;
     }
   }

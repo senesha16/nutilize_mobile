@@ -241,6 +241,7 @@ class _ReportIssuePageState extends State<ReportIssuePage> {
         targets: _selectedTargets,
         description: description,
         proofImagePaths: _images.map((image) => image.path).toList(),
+        imageFiles: _images,
         reservationId: widget.reservationId,
       );
 

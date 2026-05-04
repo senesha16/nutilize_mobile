@@ -143,6 +143,7 @@ class ItemReservationFormPage extends StatefulWidget {
 class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
   final _inventoryService = InventoryService();
   final _reservationService = ReservationService();
+  final TextEditingController _activityNameController = TextEditingController();
 
   late Future<List<Item>> _itemsFuture;
 
@@ -165,7 +166,14 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
     super.initState();
     _currentStep = 1;
     _itemsFuture = _inventoryService.getAvailableItems();
+    _activityNameController.text = _activityName;
     _loadUserName();
+  }
+
+  @override
+  void dispose() {
+    _activityNameController.dispose();
+    super.dispose();
   }
 
   DateTime? _combineDateAndTime(DateTime? date, TimeOfDay? time) {
@@ -402,6 +410,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                                   ),
                                   const SizedBox(height: 16),
                                   TextField(
+                                    controller: _activityNameController,
                                     decoration: const InputDecoration(
                                       labelText: 'Activity Name',
                                       border: OutlineInputBorder(),
@@ -519,7 +528,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                                             margin: const EdgeInsets.only(bottom: 8),
                                             child: CheckboxListTile(
                                               title: Text(item.itemName),
-                                              subtitle: Text('Available: ${item.quantity}'),
+                                              subtitle: Text('Available: ${item.availableQuantity}/${item.quantityTotal}'),
                                               value: isSelected,
                                               onChanged: (value) {
                                                 setState(() {
@@ -542,7 +551,7 @@ class _ItemReservationFormPageState extends State<ItemReservationFormPage> {
                                                         ),
                                                         keyboardType: TextInputType.number,
                                                         inputFormatters: [
-                                                          _MaxValueTextInputFormatter(item.quantity),
+                                                          _MaxValueTextInputFormatter(item.availableQuantity),
                                                         ],
                                                         onChanged: (value) {
                                                           final qty = int.tryParse(value) ?? 1;
